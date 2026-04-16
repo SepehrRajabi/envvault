@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/history"
 )
 
 var unlockedFileOutputPath string
@@ -23,12 +24,12 @@ var unlockCmd = &cobra.Command{
 			return fmt.Errorf("Could not open the file at given path: %s", filePath)
 		}
 
-		password, err := crypto.ReadPassword("Enter Password: ")
+		password, err := crypto.GetPassword("Enter Password: ")
 		if err != nil {
 			return fmt.Errorf("Could not read password: %w", err)
 		}
 
-		confirm, err := crypto.ReadPassword("Confirm Password: ")
+		confirm, err := crypto.GetPassword("Confirm Password: ")
 		if err != nil {
 			return fmt.Errorf("Could not read password confirmation: %w", err)
 		}
@@ -62,6 +63,8 @@ var unlockCmd = &cobra.Command{
 		if err := os.WriteFile(outPutPath, decrypted, 0600); err != nil {
 			return fmt.Errorf("writing %s: %w", outPutPath, err)
 		}
+
+		_ = history.Record("Unlock", filePath, algorithm)
 
 		fmt.Printf("🔓 Decrypted %s → %s\n", filePath, outPutPath)
 		return nil

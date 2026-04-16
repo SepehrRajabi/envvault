@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
 
@@ -25,12 +26,12 @@ var lockCmd = &cobra.Command{
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
-		password, err := crypto.ReadPassword("Enter password: ")
+		password, err := crypto.GetPassword("Enter password: ")
 		if err != nil {
 			return err
 		}
 
-		confirm, err := crypto.ReadPassword("Confirm password: ")
+		confirm, err := crypto.GetPassword("Confirm password: ")
 		if err != nil {
 			return err
 		}
@@ -56,6 +57,8 @@ var lockCmd = &cobra.Command{
 		if err := os.WriteFile(outPath, encrypted, 0644); err != nil {
 			return fmt.Errorf("writing %s: %w", outPath, err)
 		}
+
+		_ = history.Record("Lock", filePath, algorithm)
 
 		fmt.Printf("🔒 Encrypted %s → %s (AES-256-GCM)\n", filePath, outPath)
 		return nil
