@@ -12,6 +12,7 @@ import (
 var (
 	algorithm string
 	listAlgs  bool
+	allowWeak bool
 )
 
 var lockCmd = &cobra.Command{
@@ -37,6 +38,10 @@ var lockCmd = &cobra.Command{
 		}
 		if string(password) != string(confirm) {
 			return fmt.Errorf("passwords do not match")
+		}
+
+		if err := crypto.CheckPasswordStrength(password, allowWeak); err != nil {
+			return err
 		}
 
 		var p crypto.Provider
@@ -66,9 +71,8 @@ var lockCmd = &cobra.Command{
 }
 
 func init() {
-	lockCmd.Flags().StringVarP(&algorithm, "algorithm", "a", "",
-		"Encryption algorithm (see: envvault algorithms)")
-	lockCmd.Flags().BoolVar(&listAlgs, "list-algorithms", false,
-		"List available algorithms and exit")
+	lockCmd.Flags().StringVarP(&algorithm, "algorithm", "a", "", "Encryption algorithm (see: envvault algorithms)")
+	lockCmd.Flags().BoolVar(&listAlgs, "list-algorithms", false, "List available algorithms and exit")
+	lockCmd.Flags().BoolVar(&allowWeak, "allow-weak", false, "Allow weak passwords (not recommended)")
 	rootCmd.AddCommand(lockCmd)
 }

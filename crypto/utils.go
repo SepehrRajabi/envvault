@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/nbutton23/zxcvbn-go"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/term"
 )
@@ -46,6 +47,27 @@ func readPassword(prompt string) ([]byte, error) {
 	}
 
 	return password, nil
+}
+
+func CheckPasswordStrength(password []byte, allowWeak bool) error {
+	result := zxcvbn.PasswordStrength(string(password), nil)
+
+	// Score is 0-4. We require at least 3 (strong) by default.
+	if result.Score < 3 {
+		if allowWeak {
+			fmt.Fprintf(os.Stderr, "⚠️  Warning: Password is weak (score %d/4, crack time: %s). Proceeding anyway.\n",
+				result.Score, result.CrackTimeDisplay)
+			return nil
+		}
+
+		return fmt.Errorf(
+			"password is too weak (score %d/4, crack time: %s). Use a longer passphrase or add complexity. Use --allow-weak to bypass",
+			result.Score,
+			result.CrackTimeDisplay,
+		)
+	}
+
+	return nil
 }
 
 func GetPassword(prompt string) ([]byte, error) {

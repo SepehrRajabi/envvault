@@ -3,6 +3,7 @@ module github.com/SepehrRajabi/envvault
 go 1.26.1
 
 require (
+	github.com/nbutton23/zxcvbn-go v0.0.0-20210217022336-fa2cb2858354
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.50.0
 	golang.org/x/term v0.42.0
