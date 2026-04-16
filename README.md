@@ -32,8 +32,8 @@ envvault algorithms
 - [ ] Add tests
 - [x] Password from Environment Variable — Read password from `ENVVAULT_PASSWORD` for CI/CD pipelines
 - [ ] `envvault run` — Inject secrets directly into a process without writing to disk
-- [ ] Password Strength Check — Reject weak passwords during encryption
+- [x] Password Strength Check — Reject weak passwords during encryption
 - [x] Kubernetes Secret Generator — Output secrets as a Kubernetes Secret YAML
-- [ ] Docker `--env-file` Compatibility — Pipe decrypted output to `docker run --env-file`
+- [x] Docker `--env-file` Compatibility — Pipe decrypted output to `docker run --env-file`
 - [ ] `.gitignore` Guard — Prevent accidental commits of unencrypted `.env` files
 - [x] `envvault history` — Audit log of lock/unlock events
