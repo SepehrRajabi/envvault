@@ -20,7 +20,7 @@ func RandomBytes(n int) ([]byte, error) {
 	return b, err
 }
 
-func ReadPassword(prompt string) ([]byte, error) {
+func readPassword(prompt string) ([]byte, error) {
 	fd := int(os.Stdin.Fd())
 
 	// If stdin isn't a terminal (e.g., piped), read it normally
@@ -46,4 +46,11 @@ func ReadPassword(prompt string) ([]byte, error) {
 	}
 
 	return password, nil
+}
+
+func GetPassword(prompt string) ([]byte, error) {
+	if envPass := os.Getenv("ENVVAULT_PASSWORD"); envPass != "" {
+		return []byte(envPass), nil
+	}
+	return readPassword(prompt)
 }
