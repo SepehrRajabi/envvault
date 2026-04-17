@@ -65,7 +65,7 @@ var lockCmd = &cobra.Command{
 
 		_ = history.Record("Lock", filePath, algorithm)
 
-		fmt.Printf("🔒 Encrypted %s → %s (AES-256-GCM)\n", filePath, outPath)
+		fmt.Printf("🔒 Encrypted %s → %s (%s)\n", filePath, outPath, p.AlgorithmID())
 		return nil
 	},
 }

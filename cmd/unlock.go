@@ -66,7 +66,7 @@ var unlockCmd = &cobra.Command{
 
 		_ = history.Record("Unlock", filePath, algorithm)
 
-		fmt.Printf("🔓 Decrypted %s → %s\n", filePath, outPutPath)
+		fmt.Printf("🔒 Decrypted %s → %s (%s)\n", filePath, outPutPath, p.AlgorithmID())
 		return nil
 	},
 }
