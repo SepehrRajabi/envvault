@@ -33,9 +33,13 @@ go.work
 
 # End of https://www.toptal.com/developers/gitignore/api/go
 
-# Env files and their outputs
+# envvault
 *.env
 !*.env.example
 *.vault
 /envvault
 dist/
+.env.*
+!.env.vault
+!.env.example
+!.env.template
