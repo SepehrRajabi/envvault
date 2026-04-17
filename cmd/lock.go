@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/history"
@@ -13,7 +14,7 @@ var (
 	algorithm string
 	listAlgs  bool
 	allowWeak bool
-	recipient string
+	recipient []string
 )
 
 var lockCmd = &cobra.Command{
@@ -31,12 +32,12 @@ var lockCmd = &cobra.Command{
 		var password []byte
 
 		// Mode 1: Public Key Encryption
-		if recipient != "" {
+		if len(recipient) > 0 {
 			if algorithm != "" && algorithm != "age-pubkey" {
 				return fmt.Errorf("cannot use --recipient with algorithm %s (must be age-pubkey)", algorithm)
 			}
 			algorithm = "age-pubkey"
-			password = []byte(recipient) // Pass the public key as the "password" to the provider
+			password = []byte(strings.Join(recipient, ","))
 		} else {
 			// Mode 2: Password Encryption
 			password, err = crypto.GetPassword("Enter password: ")
@@ -57,7 +58,6 @@ var lockCmd = &cobra.Command{
 			}
 		}
 
-		// Resolve the provider if an algorithm was specified
 		var p crypto.Provider
 		if algorithm != "" {
 			p, err = crypto.GetProvider(algorithm)
@@ -76,8 +76,7 @@ var lockCmd = &cobra.Command{
 			return fmt.Errorf("writing %s: %w", outPath, err)
 		}
 
-		// Determine the actual algorithm used for the output message
-		algID := "aes256gcm-argon2id" // default
+		algID := "aes256gcm-argon2id"
 		if p != nil {
 			algID = p.AlgorithmID()
 		} else if def := crypto.Default(); def != nil {
@@ -94,7 +93,7 @@ func init() {
 	lockCmd.Flags().StringVarP(&algorithm, "algorithm", "a", "", "Encryption algorithm (see: envvault algorithms)")
 	lockCmd.Flags().BoolVar(&listAlgs, "list-algorithms", false, "List available algorithms and exit")
 	lockCmd.Flags().BoolVar(&allowWeak, "allow-weak", false, "Allow weak passwords (not recommended)")
-	lockCmd.Flags().StringVarP(&recipient, "recipient", "r", "", "Age public key (age1...) for public key encryption")
+	lockCmd.Flags().StringArrayVarP(&recipient, "recipient", "r", nil, "Age public key(s) (age1...) for public key encryption (can be specified multiple times)")
 
 	rootCmd.AddCommand(lockCmd)
 }

@@ -16,20 +16,35 @@ func (a *AgePubKeyProvider) AlgorithmID() string {
 	return "age-pubkey"
 }
 
-// Encrypt uses the 'password' parameter as the public key string (e.g., "age1ql3z7h...")
 func (a *AgePubKeyProvider) Encrypt(plaintext, publicKeyBytes []byte) ([]byte, error) {
 	publicKeyStr := strings.TrimSpace(string(publicKeyBytes))
 	if publicKeyStr == "" {
 		return nil, fmt.Errorf("no public key provided. Use --recipient flag")
 	}
 
-	recipient, err := age.ParseX25519Recipient(publicKeyStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid age public key: %w", err)
+	// Split by comma to support multiple recipients
+	keyStrings := strings.Split(publicKeyStr, ",")
+	var recipients []age.Recipient
+
+	for _, keyStr := range keyStrings {
+		keyStr = strings.TrimSpace(keyStr)
+		if keyStr == "" {
+			continue
+		}
+
+		recipient, err := age.ParseX25519Recipient(keyStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid age public key %q: %w", keyStr, err)
+		}
+		recipients = append(recipients, recipient)
+	}
+
+	if len(recipients) == 0 {
+		return nil, fmt.Errorf("no valid public keys provided")
 	}
 
 	var buf bytes.Buffer
-	w, err := age.Encrypt(&buf, recipient)
+	w, err := age.Encrypt(&buf, recipients...)
 	if err != nil {
 		return nil, fmt.Errorf("initializing age encryption: %w", err)
 	}
@@ -66,17 +81,8 @@ func (a *AgePubKeyProvider) Decrypt(payload, _ []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (a *AgePubKeyProvider) Description() ProviderInfo {
-	return ProviderInfo{
-		ID:          a.AlgorithmID(),
-		Description: "Encrypt with recipient's public key. Decrypt with your private key in AGE_IDENTITY or ~/.config/age/keys.txt",
-		Secure:      true,
-	}
-}
-
 // loadIdentities mimics the standard age CLI behavior
 func (a *AgePubKeyProvider) loadIdentities() ([]age.Identity, error) {
-	// 1. Check AGE_IDENTITY environment variable
 	if envKey := os.Getenv("AGE_IDENTITY"); envKey != "" {
 		id, err := age.ParseX25519Identity(strings.TrimSpace(envKey))
 		if err != nil {
@@ -90,19 +96,25 @@ func (a *AgePubKeyProvider) loadIdentities() ([]age.Identity, error) {
 		return nil, fmt.Errorf("finding home directory: %w", err)
 	}
 
-	// 2. Check envvault specific directory (~/.envvault/keys.txt)
 	envvaultPath := filepath.Join(home, ".envvault", "keys.txt")
 	if identities, err := parseKeyFile(envvaultPath); err == nil && len(identities) > 0 {
 		return identities, nil
 	}
 
-	// 3. Check default age directory (~/.config/age/keys.txt)
 	agePath := filepath.Join(home, ".config", "age", "keys.txt")
 	if identities, err := parseKeyFile(agePath); err == nil && len(identities) > 0 {
 		return identities, nil
 	}
 
 	return nil, fmt.Errorf("no private key found. Set AGE_IDENTITY env var or create ~/.envvault/keys.txt")
+}
+
+func (a *AgePubKeyProvider) Description() ProviderInfo {
+	return ProviderInfo{
+		ID:          a.AlgorithmID(),
+		Description: "Encrypt with recipient's public key. Decrypt with your private key in AGE_IDENTITY or ~/.config/age/keys.txt",
+		Secure:      true,
+	}
 }
 
 // parseKeyFile attempts to parse an age key file
