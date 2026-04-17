@@ -37,3 +37,4 @@ envvault algorithms
 - [x] Docker `--env-file` Compatibility — Pipe decrypted output to `docker run --env-file`
 - [x] `.gitignore` Guard — Prevent accidental commits of unencrypted `.env` files
 - [x] `envvault history` — Audit log of lock/unlock events
+- [x] `envvault edit` — Edit encrypted vaults seamlessly in your default editor
