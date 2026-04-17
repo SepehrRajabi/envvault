@@ -13,6 +13,7 @@ var (
 	algorithm string
 	listAlgs  bool
 	allowWeak bool
+	recipient string
 )
 
 var lockCmd = &cobra.Command{
@@ -27,26 +28,38 @@ var lockCmd = &cobra.Command{
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
-		password, err := crypto.GetPassword("Enter password: ")
-		if err != nil {
-			return err
+		var password []byte
+
+		// Mode 1: Public Key Encryption
+		if recipient != "" {
+			if algorithm != "" && algorithm != "age-pubkey" {
+				return fmt.Errorf("cannot use --recipient with algorithm %s (must be age-pubkey)", algorithm)
+			}
+			algorithm = "age-pubkey"
+			password = []byte(recipient) // Pass the public key as the "password" to the provider
+		} else {
+			// Mode 2: Password Encryption
+			password, err = crypto.GetPassword("Enter password: ")
+			if err != nil {
+				return err
+			}
+
+			confirm, err := crypto.GetPassword("Confirm password: ")
+			if err != nil {
+				return err
+			}
+			if string(password) != string(confirm) {
+				return fmt.Errorf("passwords do not match")
+			}
+
+			if err := crypto.CheckPasswordStrength(password, allowWeak); err != nil {
+				return err
+			}
 		}
 
-		confirm, err := crypto.GetPassword("Confirm password: ")
-		if err != nil {
-			return err
-		}
-		if string(password) != string(confirm) {
-			return fmt.Errorf("passwords do not match")
-		}
-
-		if err := crypto.CheckPasswordStrength(password, allowWeak); err != nil {
-			return err
-		}
-
+		// Resolve the provider if an algorithm was specified
 		var p crypto.Provider
 		if algorithm != "" {
-			var err error
 			p, err = crypto.GetProvider(algorithm)
 			if err != nil {
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
@@ -63,9 +76,16 @@ var lockCmd = &cobra.Command{
 			return fmt.Errorf("writing %s: %w", outPath, err)
 		}
 
-		_ = history.Record("Lock", filePath, algorithm)
+		// Determine the actual algorithm used for the output message
+		algID := "aes256gcm-argon2id" // default
+		if p != nil {
+			algID = p.AlgorithmID()
+		} else if def := crypto.Default(); def != nil {
+			algID = def.AlgorithmID()
+		}
 
-		fmt.Printf("🔒 Encrypted %s → %s (%s)\n", filePath, outPath, p.AlgorithmID())
+		fmt.Printf("🔒 Encrypted %s → %s (%s)\n", filePath, outPath, algID)
+		_ = history.Record("Lock", outPath, algID)
 		return nil
 	},
 }
@@ -74,5 +94,7 @@ func init() {
 	lockCmd.Flags().StringVarP(&algorithm, "algorithm", "a", "", "Encryption algorithm (see: envvault algorithms)")
 	lockCmd.Flags().BoolVar(&listAlgs, "list-algorithms", false, "List available algorithms and exit")
 	lockCmd.Flags().BoolVar(&allowWeak, "allow-weak", false, "Allow weak passwords (not recommended)")
+	lockCmd.Flags().StringVarP(&recipient, "recipient", "r", "", "Age public key (age1...) for public key encryption")
+
 	rootCmd.AddCommand(lockCmd)
 }

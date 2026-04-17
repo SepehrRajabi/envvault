@@ -6,6 +6,7 @@ import (
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/envfile"
+	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
 
@@ -15,19 +16,18 @@ var dockerCmd = &cobra.Command{
 	Use:   "docker [vault-file]",
 	Short: "Output decrypted secrets in Docker --env-file format",
 	Long: "Decrypts a .env.vault file and outputs KEY=VALUE lines compatible with 'docker run --env-file'.\n" +
-		"Supports ENVVAULT_PASSWORD for non-interactive use.",
+		"Supports ENVVAULT_PASSWORD and Age public keys for non-interactive use.",
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. Read the vault file
 		filePath := args[0]
-
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
-		// 2. Get password (Env var or prompt)
-		password, err := crypto.GetPassword("Enter your Password: ")
+		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
+		password, err := getVaultCredentials(data)
 		if err != nil {
 			return err
 		}
@@ -35,7 +35,6 @@ var dockerCmd = &cobra.Command{
 		// 3. Decrypt
 		var p crypto.Provider
 		if algorithm != "" {
-			var err error
 			p, err = crypto.GetProvider(algorithm)
 			if err != nil {
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
@@ -71,11 +70,13 @@ var dockerCmd = &cobra.Command{
 			fmt.Fprintf(out, "%s=%s\n", v.Key, v.Value)
 		}
 
+		_ = history.Record("Docker", filePath, p.AlgorithmID())
 		return nil
 	},
 }
 
 func init() {
 	dockerCmd.Flags().StringVarP(&dockerOutput, "output", "o", "", "Write to a file instead of stdout")
+
 	rootCmd.AddCommand(dockerCmd)
 }

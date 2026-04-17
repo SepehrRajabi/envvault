@@ -4,74 +4,77 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/history"
+	"github.com/spf13/cobra"
 )
 
-var unlockedFileOutputPath string
+var unlockOutput string
 
 var unlockCmd = &cobra.Command{
-	Use:   "unlock [filePath]",
-	Short: "Unlocks the .env file with the given password",
+	Use:   "unlock [vault-file]",
+	Short: "Decrypt a .env.vault file back to .env",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		filePath := args[0]
 
+		// 1. Read the vault file
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			return fmt.Errorf("Could not open the file at given path: %s", filePath)
+			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
-		password, err := crypto.GetPassword("Enter Password: ")
+		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
+		password, err := getVaultCredentials(data)
 		if err != nil {
-			return fmt.Errorf("Could not read password: %w", err)
+			return err
 		}
 
-		confirm, err := crypto.GetPassword("Confirm Password: ")
-		if err != nil {
-			return fmt.Errorf("Could not read password confirmation: %w", err)
-		}
-
-		if string(password) != string(confirm) {
-			return fmt.Errorf("Provided password and its confirmation do not match")
-		}
-
+		// 3. Decrypt
 		var p crypto.Provider
 		if algorithm != "" {
-			var err error
 			p, err = crypto.GetProvider(algorithm)
 			if err != nil {
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 			}
 		}
-
 		decrypted, err := crypto.Decrypt(data, password, p)
 		if err != nil {
-			return fmt.Errorf("Could not decrypt the file with the given password, %w", err)
+			return fmt.Errorf("decryption failed: %w", err)
 		}
 
-		outPutPath := unlockedFileOutputPath
-		if outPutPath == "" {
-			outPutPath = filePath
-			if len(outPutPath) > 6 && outPutPath[len(outPutPath)-6:] == ".vault" {
-				outPutPath = outPutPath[:len(outPutPath)-6]
+		// 4. Determine output path
+		outPath := unlockOutput
+		if outPath == "" {
+			outPath = filePath
+			// Strip .vault suffix if present
+			if len(outPath) > 6 && outPath[len(outPath)-6:] == ".vault" {
+				outPath = outPath[:len(outPath)-6]
 			}
 		}
 
-		if err := os.WriteFile(outPutPath, decrypted, 0600); err != nil {
-			return fmt.Errorf("writing %s: %w", outPutPath, err)
+		// 5. Write to disk with restricted permissions
+		if err := os.WriteFile(outPath, decrypted, 0600); err != nil {
+			return fmt.Errorf("writing %s: %w", outPath, err)
 		}
 
-		_ = history.Record("Unlock", filePath, algorithm)
+		alg, _ := crypto.PeekAlgorithm(data)
+		fmt.Printf("🔓 Decrypted %s → %s\n", filePath, outPath)
+		_ = history.Record("Unlock", outPath, alg)
 
-		fmt.Printf("🔒 Decrypted %s → %s (%s)\n", filePath, outPutPath, p.AlgorithmID())
 		return nil
 	},
 }
 
 func init() {
-	unlockCmd.Flags().StringVarP(&unlockedFileOutputPath, "output", "o", "", "output file path")
+	unlockCmd.Flags().StringVarP(&unlockOutput, "output", "o", "", "output file path")
+
+	unlockCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) != 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return []string{"vault"}, cobra.ShellCompDirectiveFilterFileExt
+	}
+
 	rootCmd.AddCommand(unlockCmd)
 }

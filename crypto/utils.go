@@ -76,3 +76,12 @@ func GetPassword(prompt string) ([]byte, error) {
 	}
 	return readPassword(prompt)
 }
+
+// SecureZero overwrites a byte slice with zeros.
+// This is a best-effort attempt to clear sensitive data from memory.
+// Note: Go's garbage collector may have copied the data elsewhere.
+func SecureZero(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+}

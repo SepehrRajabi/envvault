@@ -15,11 +15,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var editRecipient string
+
 var editCmd = &cobra.Command{
 	Use:   "edit [vault-file]",
 	Short: "Edit an encrypted vault file in your default editor",
 	Long: "Decrypts a .env.vault file into a temporary file, opens it in $EDITOR, " +
-		"and re-encrypts it on save. The decrypted file never persists to disk.",
+		"and re-encrypts it on save. Re-uses the existing password by default.",
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		filePath := args[0]
@@ -30,8 +32,8 @@ var editCmd = &cobra.Command{
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
-		// 2. Get password
-		password, err := crypto.GetPassword("Enter your Password: ")
+		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
+		password, err := getVaultCredentials(data)
 		if err != nil {
 			return err
 		}
@@ -39,7 +41,6 @@ var editCmd = &cobra.Command{
 		// 3. Decrypt
 		var p crypto.Provider
 		if algorithm != "" {
-			var err error
 			p, err = crypto.GetProvider(algorithm)
 			if err != nil {
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
@@ -57,8 +58,7 @@ var editCmd = &cobra.Command{
 		}
 		tmpPath := tmpFile.Name()
 
-		// CRITICAL: Always remove the temp file when we're done,
-		// regardless of how this function exits (panic, error, success).
+		// CRITICAL: Always remove the temp file when we're done
 		defer secureCleanup(tmpPath)
 
 		// 5. Write decrypted content to temp file
@@ -89,19 +89,55 @@ var editCmd = &cobra.Command{
 			return nil
 		}
 
-		// 10. Re-encrypt with the same password
-		encrypted, err := crypto.Encrypt(modified, password)
+		// 10. Determine how to re-encrypt
+		var newPassword []byte
+
+		alg, _ := crypto.PeekAlgorithm(data)
+
+		if alg == "age-pubkey" {
+			// We can't reuse the "password" because it was empty for pubkey.
+			// We need the user to specify --recipient again, or give a new password.
+			if editRecipient != "" {
+				newPassword = []byte(editRecipient)
+				p, err = crypto.GetProvider("age-pubkey")
+				if err != nil {
+					return err
+				}
+			} else {
+				fmt.Println("Vault was encrypted with a public key. Please enter a new password to re-encrypt (or run with --recipient).")
+				newPassword, err = crypto.GetPassword("Enter new password: ")
+				if err != nil {
+					return err
+				}
+				confirm, err := crypto.GetPassword("Confirm new password: ")
+				if err != nil {
+					return err
+				}
+				if string(newPassword) != string(confirm) {
+					return fmt.Errorf("passwords do not match")
+				}
+				if err := crypto.CheckPasswordStrength(newPassword, false); err != nil {
+					return err
+				}
+			}
+		} else {
+			// Standard password vault: reuse the same password!
+			newPassword = password
+		}
+
+		// 11. Re-encrypt
+		encrypted, err := crypto.Encrypt(modified, newPassword, p)
 		if err != nil {
 			return fmt.Errorf("re-encrypting: %w", err)
 		}
 
-		// 11. Atomically write back to the vault file
+		// 12. Atomically write back to the vault file
 		if err := atomicWrite(filePath, encrypted); err != nil {
 			return fmt.Errorf("writing vault: %w", err)
 		}
 
 		fmt.Printf("🔒 Saved changes to %s\n", filePath)
-		_ = history.Record("Edit", filePath, algorithm)
+		_ = history.Record("Edit", filePath, p.AlgorithmID())
 
 		return nil
 	},
@@ -135,9 +171,7 @@ func createSecureTempFile(vaultPath string) (*os.File, error) {
 }
 
 // secureCleanup overwrites the temp file with zeros before deleting it.
-// This is best-effort: SSDs and journaled filesystems may still retain data.
 func secureCleanup(path string) {
-	// Try to overwrite with zeros first
 	if info, err := os.Stat(path); err == nil {
 		zeros := make([]byte, info.Size())
 		_ = os.WriteFile(path, zeros, 0600)
@@ -152,7 +186,6 @@ func launchEditor(path string) error {
 		editor = os.Getenv("EDITOR")
 	}
 	if editor == "" {
-		// Sensible defaults per OS
 		if runtime.GOOS == "windows" {
 			editor = "notepad"
 		} else {
@@ -160,7 +193,6 @@ func launchEditor(path string) error {
 		}
 	}
 
-	// Split editor command in case it has flags (e.g., "code --wait")
 	parts := strings.Fields(editor)
 	args := append(parts[1:], path)
 
@@ -172,41 +204,8 @@ func launchEditor(path string) error {
 	return cmd.Run()
 }
 
-// atomicWrite writes data by first writing to a temp file in the same directory,
-// then renaming it. This prevents corruption if the program is interrupted.
-func atomicWrite(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmpFile, err := os.CreateTemp(dir, ".envvault-write-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmpFile.Name()
-
-	// On any failure, clean up the temp file
-	defer func() {
-		if _, err := os.Stat(tmpPath); err == nil {
-			os.Remove(tmpPath)
-		}
-	}()
-
-	if _, err := tmpFile.Write(data); err != nil {
-		tmpFile.Close()
-		return err
-	}
-
-	if err := tmpFile.Sync(); err != nil {
-		tmpFile.Close()
-		return err
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return err
-	}
-
-	// Atomically replace the original file
-	return os.Rename(tmpPath, path)
-}
-
 func init() {
+	editCmd.Flags().StringVarP(&editRecipient, "recipient", "r", "", "Re-encrypt with an Age public key (age1...) after editing")
+
 	rootCmd.AddCommand(editCmd)
 }

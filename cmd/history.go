@@ -60,6 +60,10 @@ var historyCmd = &cobra.Command{
 				actionIcon = "☸️"
 			case "Edit":
 				actionIcon = "✏️"
+			case "Rotate":
+				actionIcon = "🔄"
+			case "Docker":
+				actionIcon = "🐳"
 			}
 
 			algo := "-"

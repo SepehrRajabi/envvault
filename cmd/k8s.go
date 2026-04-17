@@ -22,7 +22,7 @@ var (
 var k8sCmd = &cobra.Command{
 	Use:   "k8s [vault-file]",
 	Short: "Generate a Kubernetes Secret YAML from an encrypted vault",
-	Long:  "Decrypts a .env.vault file and outputs it as a Kubernetes Secret manifest. Supports ENVVAULT_PASSWORD for non-interactive use.",
+	Long:  "Decrypts a .env.vault file and outputs it as a Kubernetes Secret manifest. Supports ENVVAULT_PASSWORD and Age public keys for non-interactive use.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. Read the vault file
@@ -33,8 +33,8 @@ var k8sCmd = &cobra.Command{
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
-		// 2. Get password (Check env var first for CI/CD, then prompt)
-		password, err := crypto.GetPassword("Enter your Password: ")
+		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
+		password, err := getVaultCredentials(data)
 		if err != nil {
 			return err
 		}
@@ -42,13 +42,11 @@ var k8sCmd = &cobra.Command{
 		// 3. Decrypt
 		var p crypto.Provider
 		if algorithm != "" {
-			var err error
 			p, err = crypto.GetProvider(algorithm)
 			if err != nil {
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 			}
 		}
-
 		decrypted, err := crypto.Decrypt(data, password, p)
 		if err != nil {
 			return fmt.Errorf("decryption failed: %w", err)
@@ -118,11 +116,10 @@ data:
 		}
 
 		if err := t.Execute(out, tmplData); err != nil {
-			return fmt.Errorf("Error generating yaml: %w", err)
+			return fmt.Errorf("generating yaml: %w", err)
 		}
 
-		_ = history.Record("K8s", filePath, algorithm)
-
+		_ = history.Record("K8s", filePath, p.AlgorithmID())
 		return nil
 	},
 }
@@ -130,7 +127,7 @@ data:
 func init() {
 	k8sCmd.Flags().StringVarP(&k8sName, "name", "n", "my-app-secret", "Name of the Kubernetes Secret")
 	k8sCmd.Flags().StringVarP(&k8sNamespace, "namespace", "s", "default", "Namespace of the Kubernetes Secret")
-	k8sCmd.Flags().StringVarP(&k8sType, "type", "t", "Opaque", "Type of the Kubernetes Secret")
+	k8sCmd.Flags().StringVarP(&k8sType, "type", "t", "Opaque", "Type of the Kubernetes Secret (e.g., Opaque, kubernetes.io/tls)")
 	k8sCmd.Flags().StringVarP(&k8sOutput, "output", "o", "", "Output file path (defaults to stdout)")
 
 	rootCmd.AddCommand(k8sCmd)

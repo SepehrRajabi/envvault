@@ -105,3 +105,31 @@ func Decrypt(data, password []byte, p Provider) ([]byte, error) {
 
 	return plaintext, nil
 }
+
+// PeekAlgorithm reads just the envelope header to determine what algorithm was used.
+// This is useful for deciding whether to prompt for a password before decryption.
+func PeekAlgorithm(data []byte) (string, error) {
+	if len(data) < 1 {
+		return "", fmt.Errorf("empty input")
+	}
+
+	if data[0] != currentVersion {
+		return "", fmt.Errorf("unsupported vault version: %d", data[0])
+	}
+
+	if len(data) < 5 {
+		return "", fmt.Errorf("corrupted data: incomplete header")
+	}
+
+	hdrLen := binary.BigEndian.Uint32(data[1:5])
+	if len(data) < int(5+hdrLen) {
+		return "", fmt.Errorf("corrupted data: header truncated")
+	}
+
+	var hdr envelopeHeader
+	if err := json.Unmarshal(data[5:5+hdrLen], &hdr); err != nil {
+		return "", fmt.Errorf("parsing envelope: %w", err)
+	}
+
+	return hdr.Algorithm, nil
+}
