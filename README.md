@@ -38,3 +38,5 @@ envvault algorithms
 - [x] `.gitignore` Guard — Prevent accidental commits of unencrypted `.env` files
 - [x] `envvault history` — Audit log of lock/unlock events
 - [x] `envvault edit` — Edit encrypted vaults seamlessly in your default editor
+- [x] `envvault rotate` — Re-encrypt a vault with a new password in-place
+- [x] Age Public Key Encryption — Encrypt/decrypt vaults using asymmetric Age keys for team sharing
