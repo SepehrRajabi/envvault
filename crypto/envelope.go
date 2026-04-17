@@ -133,3 +133,53 @@ func PeekAlgorithm(data []byte) (string, error) {
 
 	return hdr.Algorithm, nil
 }
+
+// Verify checks the structural integrity of a vault file without requiring a password.
+// It validates the version, header, algorithm, and payload existence.
+func Verify(data []byte) (*envelopeHeader, error) {
+	if len(data) < 1 {
+		return nil, fmt.Errorf("empty input")
+	}
+
+	if data[0] != currentVersion {
+		return nil, fmt.Errorf("unsupported vault version: %d", data[0])
+	}
+
+	if len(data) < 5 {
+		return nil, fmt.Errorf("corrupted data: incomplete header length")
+	}
+
+	hdrLen := binary.BigEndian.Uint32(data[1:5])
+	if len(data) < int(5+hdrLen) {
+		return nil, fmt.Errorf("corrupted data: header truncated")
+	}
+
+	var hdr envelopeHeader
+	if err := json.Unmarshal(data[5:5+hdrLen], &hdr); err != nil {
+		return nil, fmt.Errorf("corrupted data: invalid header JSON: %w", err)
+	}
+
+	if hdr.Algorithm == "" {
+		return nil, fmt.Errorf("corrupted data: missing algorithm in header")
+	}
+
+	if hdr.Checksum == "" {
+		return nil, fmt.Errorf("corrupted data: missing checksum in header")
+	}
+
+	// Verify payload actually exists
+	if len(data) <= int(5+hdrLen) {
+		return nil, fmt.Errorf("corrupted data: missing payload")
+	}
+
+	// Verify the algorithm is one we actually support
+	if _, err := GetProvider(hdr.Algorithm); err != nil {
+		return nil, fmt.Errorf("vault uses unknown algorithm %q (provider not registered)", hdr.Algorithm)
+	}
+
+	return &envelopeHeader{
+		Version:   hdr.Version,
+		Algorithm: hdr.Algorithm,
+		Checksum:  hdr.Checksum,
+	}, nil
+}
