@@ -31,10 +31,8 @@ type AESGCMProvider struct {
 	NonceLen int
 }
 
-var name = "aes256gcm-argon2id"
-
 func (a *AESGCMProvider) AlgorithmID() string {
-	return name
+	return "aes256gcm-argon2id"
 }
 
 func (a *AESGCMProvider) Encrypt(plaintext, password []byte) ([]byte, error) {
