@@ -35,5 +35,5 @@ envvault algorithms
 - [x] Password Strength Check — Reject weak passwords during encryption
 - [x] Kubernetes Secret Generator — Output secrets as a Kubernetes Secret YAML
 - [x] Docker `--env-file` Compatibility — Pipe decrypted output to `docker run --env-file`
-- [ ] `.gitignore` Guard — Prevent accidental commits of unencrypted `.env` files
+- [x] `.gitignore` Guard — Prevent accidental commits of unencrypted `.env` files
 - [x] `envvault history` — Audit log of lock/unlock events
