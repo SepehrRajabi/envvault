@@ -5,7 +5,7 @@ Encrypted `.env` file manager. Lock, unlock, diff, and share environment variabl
 ## Install
 
 ```bash
-go install github.com/<yourname>/envvault@latest
+go install github.com/SepehrRajabi/envvault@latest
 ```
 
 ## Usage
