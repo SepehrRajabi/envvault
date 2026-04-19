@@ -41,7 +41,7 @@ var historyCmd = &cobra.Command{
 		}
 
 		if len(events) == 0 {
-			fmt.Println("No history found. Use 'envvault lock' or 'envvault unlock' to create entries.")
+			fmt.Println("No history found. Use some commands to create entries.")
 			return nil
 		}
 
