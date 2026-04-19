@@ -26,6 +26,9 @@ envvault edit .env.vault
 # Re-encrypt a vault with a new password
 envvault rotate .env.vault
 
+# export varibales from the vault file into your environment variables
+eval $(envvault export .env.vault)
+
 # Diff two files (supports .env, .env.vault, or both)
 envvault diff .env.vault .env.production
 
@@ -49,6 +52,7 @@ envvault algorithms
 - **`edit`**: Open encrypted vaults in your `$EDITOR`. Decrypts to a secure temp file, re-encrypts on save.
 - **`rotate`**: Re-encrypt a vault with a new password in-place. Decrypted data never touches disk.
 - **`diff`**: Compare two `.env` or `.env.vault` files by key. Auto-detects vaults and caches passwords to avoid double-prompting.
+- **`export`**: Export environment varibales directly from a vault file 
 
 ### Cryptography & Security
 - **Plugin Architecture**: Bring your own encryption algorithm by implementing the `crypto.Provider` interface.
