@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/envfile"
 	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
@@ -43,7 +44,12 @@ var unlockCmd = &cobra.Command{
 			return fmt.Errorf("decryption failed: %w", err)
 		}
 
-		// 4. Determine output path
+		// 4. Parse .env contents to validate structure
+		if _, err := envfile.Parse(string(decrypted)); err != nil {
+			return fmt.Errorf("parsing env file: %w", err)
+		}
+
+		// 5. Determine output path
 		outPath := unlockOutput
 		if outPath == "" {
 			outPath = filePath
@@ -53,7 +59,7 @@ var unlockCmd = &cobra.Command{
 			}
 		}
 
-		// 5. Write to disk with restricted permissions
+		// 6. Write to disk with restricted permissions
 		if err := os.WriteFile(outPath, decrypted, 0600); err != nil {
 			return fmt.Errorf("writing %s: %w", outPath, err)
 		}

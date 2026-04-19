@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/envfile"
 	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
@@ -42,7 +43,12 @@ var exportCmd = &cobra.Command{
 			return fmt.Errorf("decryption failed: %w", err)
 		}
 
-		// 4, Output to env variables
+		// 4. Parse .env contents to validate structure
+		if _, err := envfile.Parse(string(decrypted)); err != nil {
+			return fmt.Errorf("parsing env file: %w", err)
+		}
+
+		// 5, Output to env variables
 		var out strings.Builder
 		lines := strings.SplitSeq(string(decrypted), "\n")
 		for line := range lines {

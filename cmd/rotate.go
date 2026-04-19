@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/envfile"
 	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
@@ -39,14 +40,19 @@ var rotateCmd = &cobra.Command{
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 			}
 		}
-		plaintext, err := crypto.Decrypt(data, oldPassword, p)
+		decryped, err := crypto.Decrypt(data, oldPassword, p)
 		if err != nil {
 			return fmt.Errorf("decryption failed: incorrect password or corrupted file")
 		}
 
+		// 4. Parse .env contents to validate structure
+		if _, err := envfile.Parse(string(decryped)); err != nil {
+			return fmt.Errorf("parsing env file: %w", err)
+		}
+
 		fmt.Println("✅ Vault unlocked successfully. Please enter the new password.")
 
-		// 4. Get the new password (always interactive)
+		// 5. Get the new password (always interactive)
 		newPassword, err := crypto.GetPassword("Enter new password: ")
 		if err != nil {
 			return err
@@ -60,18 +66,18 @@ var rotateCmd = &cobra.Command{
 			return fmt.Errorf("new passwords do not match")
 		}
 
-		// 5. Check strength of the new password
+		// 6. Check strength of the new password
 		if err := crypto.CheckPasswordStrength(newPassword, rotateAllowWeak); err != nil {
 			return err
 		}
 
-		// 6. Re-encrypt with the new password, using the default algorithm
-		newCiphertext, err := crypto.Encrypt(plaintext, newPassword)
+		// 7. Re-encrypt with the new password, using the default algorithm
+		newCiphertext, err := crypto.Encrypt(decryped, newPassword)
 		if err != nil {
 			return fmt.Errorf("re-encryption failed: %w", err)
 		}
 
-		// 7. Atomically overwrite the original file
+		// 8. Atomically overwrite the original file
 		if err := atomicWrite(filePath, newCiphertext); err != nil {
 			return fmt.Errorf("writing new vault file: %w", err)
 		}

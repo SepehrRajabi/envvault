@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/envfile"
 	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
@@ -51,7 +52,12 @@ var editCmd = &cobra.Command{
 			return fmt.Errorf("decryption failed: %w", err)
 		}
 
-		// 4. Create a secure temp file
+		// 4. Parse .env contents to validate structure before editing
+		if _, err := envfile.Parse(string(decrypted)); err != nil {
+			return fmt.Errorf("parsing env file: %w", err)
+		}
+
+		// 5. Create a secure temp file
 		tmpFile, err := createSecureTempFile(filePath)
 		if err != nil {
 			return fmt.Errorf("creating temp file: %w", err)
@@ -61,35 +67,40 @@ var editCmd = &cobra.Command{
 		// CRITICAL: Always remove the temp file when we're done
 		defer secureCleanup(tmpPath)
 
-		// 5. Write decrypted content to temp file
+		// 6. Write decrypted content to temp file
 		if _, err := tmpFile.Write(decrypted); err != nil {
 			tmpFile.Close()
 			return fmt.Errorf("writing temp file: %w", err)
 		}
 		tmpFile.Close()
 
-		// 6. Compute checksum BEFORE editing to detect changes
+		// 7. Compute checksum BEFORE editing to detect changes
 		originalHash := sha256.Sum256(decrypted)
 
-		// 7. Launch editor
+		// 8. Launch editor
 		if err := launchEditor(tmpPath); err != nil {
 			return fmt.Errorf("editor failed: %w", err)
 		}
 
-		// 8. Read the modified content
+		// 9. Read the modified content
 		modified, err := os.ReadFile(tmpPath)
 		if err != nil {
 			return fmt.Errorf("reading modified content: %w", err)
 		}
 
-		// 9. Check if anything actually changed
+		// 10. Check if anything actually changed
 		newHash := sha256.Sum256(modified)
 		if bytes.Equal(originalHash[:], newHash[:]) {
 			fmt.Println("📝 No changes detected. Vault unchanged.")
 			return nil
 		}
 
-		// 10. Determine how to re-encrypt
+		// 11. Parse edited .env contents to validate structure before re-encryption
+		if _, err := envfile.Parse(string(modified)); err != nil {
+			return fmt.Errorf("parsing edited env file: %w", err)
+		}
+
+		// 12. Determine how to re-encrypt
 		var newPassword []byte
 
 		alg, _ := crypto.PeekAlgorithm(data)
@@ -125,13 +136,13 @@ var editCmd = &cobra.Command{
 			newPassword = password
 		}
 
-		// 11. Re-encrypt
+		// 13. Re-encrypt
 		encrypted, err := crypto.Encrypt(modified, newPassword, p)
 		if err != nil {
 			return fmt.Errorf("re-encrypting: %w", err)
 		}
 
-		// 12. Atomically write back to the vault file
+		// 14. Atomically write back to the vault file
 		if err := atomicWrite(filePath, encrypted); err != nil {
 			return fmt.Errorf("writing vault: %w", err)
 		}
