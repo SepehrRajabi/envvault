@@ -69,12 +69,5 @@ var unlockCmd = &cobra.Command{
 func init() {
 	unlockCmd.Flags().StringVarP(&unlockOutput, "output", "o", "", "output file path")
 
-	unlockCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		if len(args) != 0 {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		return []string{"vault"}, cobra.ShellCompDirectiveFilterFileExt
-	}
-
 	rootCmd.AddCommand(unlockCmd)
 }
