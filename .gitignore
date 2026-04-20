@@ -43,3 +43,5 @@ dist/
 !.env.vault
 !.env.example
 !.env.template
+# shamir shares
+.*-share-*.txt
