@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
@@ -11,10 +12,13 @@ import (
 )
 
 var (
-	algorithm string
-	listAlgs  bool
-	allowWeak bool
-	recipient []string
+	algorithm       string
+	listAlgs        bool
+	allowWeak       bool
+	recipient       []string
+	shamirShares    int
+	shamirThreshold int
+	shamirSharesDir string
 )
 
 var lockCmd = &cobra.Command{
@@ -60,9 +64,27 @@ var lockCmd = &cobra.Command{
 
 		var p crypto.Provider
 		if algorithm != "" {
-			p, err = crypto.GetProvider(algorithm)
-			if err != nil {
-				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
+			if algorithm == "shamir-aes256gcm" {
+				if shamirThreshold < 2 {
+					return fmt.Errorf("invalid --threshold %d (must be >= 2)", shamirThreshold)
+				}
+				if shamirShares < shamirThreshold {
+					return fmt.Errorf("--shares (%d) must be >= --threshold (%d)", shamirShares, shamirThreshold)
+				}
+				p = &crypto.ShamirAESGCMProvider{
+					Time:      3,
+					Memory:    64 * 1024,
+					Threads:   4,
+					SaltLen:   32,
+					NonceLen:  12,
+					Shares:    shamirShares,
+					Threshold: shamirThreshold,
+				}
+			} else {
+				p, err = crypto.GetProvider(algorithm)
+				if err != nil {
+					return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
+				}
 			}
 		}
 
@@ -84,6 +106,23 @@ var lockCmd = &cobra.Command{
 		}
 
 		fmt.Printf("🔒 Encrypted %s → %s (%s)\n", filePath, outPath, algID)
+		if shareProvider, ok := p.(crypto.ShareExporter); ok {
+			shares := shareProvider.GeneratedShares()
+			if len(shares) > 0 {
+				fmt.Fprintln(os.Stderr, "Shamir shares (store separately, each with a different holder):")
+				for i, s := range shares {
+					fmt.Fprintf(os.Stderr, "  share %d: %s\n", i+1, s)
+				}
+				if shamirSharesDir != "" {
+					base := strings.TrimSuffix(filepath.Base(outPath), filepath.Ext(outPath))
+					paths, err := writeSharesToFiles(shamirSharesDir, base+"-share", shares)
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(os.Stderr, "Saved %d share files to %s\n", len(paths), shamirSharesDir)
+				}
+			}
+		}
 		_ = history.Record("Lock", outPath, algID)
 		return nil
 	},
@@ -94,6 +133,9 @@ func init() {
 	lockCmd.Flags().BoolVar(&listAlgs, "list-algorithms", false, "List available algorithms and exit")
 	lockCmd.Flags().BoolVar(&allowWeak, "allow-weak", false, "Allow weak passwords (not recommended)")
 	lockCmd.Flags().StringArrayVarP(&recipient, "recipient", "r", nil, "Age public key(s) (age1...) for public key encryption (can be specified multiple times)")
+	lockCmd.Flags().IntVar(&shamirShares, "shares", 5, "Number of Shamir shares to generate (shamir-aes256gcm)")
+	lockCmd.Flags().IntVar(&shamirThreshold, "threshold", 3, "Minimum shares required to decrypt (shamir-aes256gcm)")
+	lockCmd.Flags().StringVar(&shamirSharesDir, "shares-dir", "", "Directory to write each generated Shamir share into its own file")
 
 	rootCmd.AddCommand(lockCmd)
 }
