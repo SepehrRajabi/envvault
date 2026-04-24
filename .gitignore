@@ -45,3 +45,6 @@ dist/
 !.env.template
 # shamir shares
 .*-share-*.txt
+*.envschema
+!*.envschema.example
+!.envschema.template
