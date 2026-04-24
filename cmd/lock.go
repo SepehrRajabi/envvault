@@ -88,6 +88,10 @@ var lockCmd = &cobra.Command{
 			}
 		}
 
+		if !p.Description().Secure {
+			fmt.Printf("⚠️ the selected algorithm, %s, is not secure", p.AlgorithmID())
+		}
+
 		encrypted, err := crypto.Encrypt(data, password, p)
 		if err != nil {
 			return fmt.Errorf("encrypting: %w", err)
