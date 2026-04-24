@@ -15,6 +15,7 @@ var (
 	algorithm       string
 	listAlgs        bool
 	allowWeak       bool
+	allowInsecure   bool
 	recipient       []string
 	shamirShares    int
 	shamirThreshold int
@@ -88,8 +89,21 @@ var lockCmd = &cobra.Command{
 			}
 		}
 
-		if !p.Description().Secure {
-			fmt.Printf("⚠️ the selected algorithm, %s, is not secure", p.AlgorithmID())
+		if !allowInsecure {
+			if !p.Description().Secure {
+				return fmt.Errorf("selected algorithm, %s, is not secure (use --allow-insecure to override)", p.AlgorithmID())
+			}
+		} else {
+			fmt.Printf("⚠️  Warning: --allow-insecure is set, allowing use of insecure algorithms (not recommended)")
+			if p.Description().Secure {
+				fmt.Printf("Selected algorithm, %s, is considered secure", p.AlgorithmID())
+			} else {
+				fmt.Printf("Selected algorithm, %s, is NOT considered secure", p.AlgorithmID())
+			}
+			fmt.Printf("Use envvault algorithms to see security ratings of available algorithms")
+			fmt.Printf("⚠️  Warning: Using an insecure algorithm may put your secrets at risk of compromise")
+			fmt.Printf("If you are unsure, use the default algorithm (no --algorithm flag) which is currently %s", crypto.Default().AlgorithmID())
+			fmt.Printf("⚠️  Warning: --allow-insecure should only be used for testing or compatibility with legacy data, not for new vaults")
 		}
 
 		encrypted, err := crypto.Encrypt(data, password, p)
@@ -136,6 +150,7 @@ func init() {
 	lockCmd.Flags().StringVarP(&algorithm, "algorithm", "a", "", "Encryption algorithm (see: envvault algorithms)")
 	lockCmd.Flags().BoolVar(&listAlgs, "list-algorithms", false, "List available algorithms and exit")
 	lockCmd.Flags().BoolVar(&allowWeak, "allow-weak", false, "Allow weak passwords (not recommended)")
+	lockCmd.Flags().BoolVar(&allowInsecure, "allow-insecure", false, "Allow insecure algorithms (not recommended)")
 	lockCmd.Flags().StringArrayVarP(&recipient, "recipient", "r", nil, "Age public key(s) (age1...) for public key encryption (can be specified multiple times)")
 	lockCmd.Flags().IntVar(&shamirShares, "shares", 5, "Number of Shamir shares to generate (shamir-aes256gcm)")
 	lockCmd.Flags().IntVar(&shamirThreshold, "threshold", 3, "Minimum shares required to decrypt (shamir-aes256gcm)")
