@@ -73,6 +73,7 @@ var lockCmd = &cobra.Command{
 					return fmt.Errorf("--shares (%d) must be >= --threshold (%d)", shamirShares, shamirThreshold)
 				}
 				p = &crypto.ShamirAESGCMProvider{
+					ID:        "shamir-aes256gcm",
 					Time:      3,
 					Memory:    64 * 1024,
 					Threads:   4,

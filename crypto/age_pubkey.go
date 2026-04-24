@@ -10,10 +10,12 @@ import (
 	"filippo.io/age"
 )
 
-type AgePubKeyProvider struct{}
+type AgePubKeyProvider struct {
+	ID string
+}
 
 func (a *AgePubKeyProvider) AlgorithmID() string {
-	return "age-pubkey"
+	return a.ID
 }
 
 func (a *AgePubKeyProvider) Encrypt(plaintext, publicKeyBytes []byte) ([]byte, error) {
@@ -129,5 +131,5 @@ func parseKeyFile(path string) ([]age.Identity, error) {
 }
 
 func init() {
-	Register(&AgePubKeyProvider{})
+	Register(&AgePubKeyProvider{ID: "age-pubkey"})
 }

@@ -15,6 +15,7 @@ const shamirPayloadVersion = 1
 // ShamirAESGCMProvider encrypts with AES-GCM and requires K-of-N Shamir shares
 // to reconstruct the secret used for key derivation.
 type ShamirAESGCMProvider struct {
+	ID        string
 	Time      uint32
 	Memory    uint32
 	Threads   uint8
@@ -28,6 +29,7 @@ type ShamirAESGCMProvider struct {
 
 func init() {
 	defaultShamir := &ShamirAESGCMProvider{
+		ID:        "shamir-aes256gcm",
 		Time:      3,
 		Memory:    64 * 1024,
 		Threads:   4,
@@ -40,7 +42,7 @@ func init() {
 }
 
 func (s *ShamirAESGCMProvider) AlgorithmID() string {
-	return "shamir-aes256gcm"
+	return s.ID
 }
 
 func (s *ShamirAESGCMProvider) Description() ProviderInfo {

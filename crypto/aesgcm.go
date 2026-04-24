@@ -13,6 +13,7 @@ import (
 func init() {
 	// Register the default implementation
 	defaultAES := &AESGCMProvider{
+		ID:       "aes256gcm-argon2id",
 		Time:     3,
 		Memory:   64 * 1024,
 		Threads:  4,
@@ -24,6 +25,7 @@ func init() {
 
 // AESGCMProvider implements AES-256-GCM with Argon2id key derivation.
 type AESGCMProvider struct {
+	ID       string
 	Time     uint32
 	Memory   uint32
 	Threads  uint8
@@ -32,7 +34,7 @@ type AESGCMProvider struct {
 }
 
 func (a *AESGCMProvider) AlgorithmID() string {
-	return "aes256gcm-argon2id"
+	return a.ID
 }
 
 func (a *AESGCMProvider) Encrypt(plaintext, password []byte) ([]byte, error) {

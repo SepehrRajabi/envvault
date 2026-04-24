@@ -7,10 +7,12 @@ import (
 	"filippo.io/age"
 )
 
-type AgeProvider struct{}
+type AgeProvider struct {
+	ID string
+}
 
 func (a *AgeProvider) AlgorithmID() string {
-	return "age-passphrase"
+	return a.ID
 }
 
 func (a *AgeProvider) Encrypt(plaintext, password []byte) ([]byte, error) {
@@ -77,12 +79,12 @@ func (a *AgeProvider) Decrypt(payload, password []byte) ([]byte, error) {
 
 func (a *AgeProvider) Description() ProviderInfo {
 	return ProviderInfo{
-		ID:          "age (scrypt passphrase mode)",
+		ID:          a.AlgorithmID(),
 		Description: "Uses the age encryption tool with a passphrase. Highly secure and widely used for file encryption.",
 		Secure:      true,
 	}
 }
 
 func init() {
-	Register(&AgeProvider{})
+	Register(&AgeProvider{ID: "age-passphrase"})
 }
