@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 )
@@ -86,4 +87,16 @@ func writeSharesToFiles(dir, prefix string, shares []string) ([]string, error) {
 	}
 
 	return paths, nil
+}
+
+func isVaultFile(path string, data []byte) bool {
+	// Fast check: file extension
+	if strings.HasSuffix(path, ".vault") {
+		return true
+	}
+	// Fallback: check the envelope version byte
+	if len(data) > 0 && data[0] == 1 {
+		return true
+	}
+	return false
 }
