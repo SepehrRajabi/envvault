@@ -24,6 +24,12 @@ type Provider interface {
 	Description() ProviderInfo
 }
 
+// ShareExporter is an optional interface for providers that generate
+// distribution artifacts (e.g., Shamir shares) during encryption.
+type ShareExporter interface {
+	GeneratedShares() []string
+}
+
 // Netadata about an algorithm
 type ProviderInfo struct {
 	ID          string

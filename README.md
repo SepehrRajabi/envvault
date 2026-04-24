@@ -70,8 +70,6 @@ envvault algorithms
 ### Developer Experience
 - **CI/CD Ready**: Set `ENVVAULT_PASSWORD` or `AGE_IDENTITY` environment variables to skip interactive prompts.
 - **`history`**: Audit log of lock, unlock, rotate, edit, k8s, and docker events stored locally in `~/.envvault/history.json`.
-- **Smart Completions**: Built-in shell completions for bash, zsh, and fish with smart file filtering (e.g., only suggests `.vault` files for `unlock`).
-- **Tested**: Includes a mock XOR provider for fast, deterministic unit testing of the envelope and registry.
 
 ## CI/CD Integration
 

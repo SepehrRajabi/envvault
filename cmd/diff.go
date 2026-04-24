@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/envfile"
@@ -99,18 +98,6 @@ var diffCmd = &cobra.Command{
 			len(added), len(removed), len(changed))
 		return nil
 	},
-}
-
-func isVaultFile(path string, data []byte) bool {
-	// Fast check: file extension
-	if strings.HasSuffix(path, ".vault") {
-		return true
-	}
-	// Fallback: check the envelope version byte
-	if len(data) > 0 && (data[0] == 1 || data[0] == 2) {
-		return true
-	}
-	return false
 }
 
 func init() {

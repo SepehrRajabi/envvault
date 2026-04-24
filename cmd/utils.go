@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 )
@@ -48,7 +50,53 @@ func getVaultCredentials(data []byte) ([]byte, error) {
 		// No password needed, the provider will look for the private key automatically
 		return []byte(""), nil
 	}
+	if alg == "shamir-aes256gcm" {
+		threshold, err := crypto.DecodeShamirPayloadThreshold(data)
+		if err != nil {
+			return nil, err
+		}
+		return crypto.GetPassword(fmt.Sprintf(
+			"Enter Shamir shares (base64, comma-separated; need at least %d): ",
+			threshold,
+		))
+	}
 
 	// Standard password-encrypted vault
 	return crypto.GetPassword("Enter password: ")
+}
+
+func writeSharesToFiles(dir, prefix string, shares []string) ([]string, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("shares output directory is empty")
+	}
+	if len(shares) == 0 {
+		return nil, nil
+	}
+
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, fmt.Errorf("creating shares output directory: %w", err)
+	}
+
+	paths := make([]string, 0, len(shares))
+	for i, share := range shares {
+		path := filepath.Join(dir, fmt.Sprintf("%s-%d.txt", prefix, i+1))
+		if err := os.WriteFile(path, []byte(share+"\n"), 0600); err != nil {
+			return nil, fmt.Errorf("writing share file %s: %w", path, err)
+		}
+		paths = append(paths, path)
+	}
+
+	return paths, nil
+}
+
+func isVaultFile(path string, data []byte) bool {
+	// Fast check: file extension
+	if strings.HasSuffix(path, ".vault") {
+		return true
+	}
+	// Fallback: check the envelope version byte
+	if len(data) > 0 && data[0] == 1 {
+		return true
+	}
+	return false
 }
