@@ -44,8 +44,9 @@ func atomicWrite(path string, data []byte) error {
 
 // getVaultCredentials determines if a vault requires a password or a private key
 // and returns the appropriate credential (or empty byte slice for pubkey vaults).
-// It first checks the OS keyring for a stored key before prompting the user.
-func getVaultCredentials(data []byte) ([]byte, error) {
+// It first checks the OS keyring for a stored key for this file before prompting the user.
+// filePath is used to look up project-specific keys in the keyring.
+func getVaultCredentials(data []byte, filePath string) ([]byte, error) {
 	alg, _ := crypto.PeekAlgorithm(data)
 
 	if alg == "age-pubkey" {
@@ -53,8 +54,8 @@ func getVaultCredentials(data []byte) ([]byte, error) {
 		return []byte(""), nil
 	}
 
-	// Try to get key from OS keyring first
-	storedKey, err := keyring.RetrieveKey()
+	// Try to get key from OS keyring first (file-specific or default)
+	storedKey, err := keyring.RetrieveKey(filePath)
 	if err == nil && storedKey != "" {
 		return []byte(storedKey), nil
 	}

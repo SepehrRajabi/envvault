@@ -4,22 +4,32 @@ import (
 	"fmt"
 	"syscall"
 
+	"github.com/SepehrRajabi/envvault/history"
 	"github.com/SepehrRajabi/envvault/keyring"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
 var loginCmd = &cobra.Command{
-	Use:   "login",
+	Use:   "login [vault-file]",
 	Short: "Store decryption key in OS keystore",
 	Long: `Securely store your decryption key in the native OS keystore (macOS Keychain, Windows Credential Manager, Linux Secret Service).
-This allows you to use envvault commands without specifying --key or entering your password repeatedly.`,
+
+This allows you to use envvault commands without specifying --key or entering your password repeatedly.
+
+If [vault-file] is provided, the key is stored per-project. Future commands automatically use the stored key for that file.
+If no file is provided, stores as the default key (used as fallback for all projects).`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return handleLogin()
+		filePath := ""
+		if len(args) > 0 {
+			filePath = args[0]
+		}
+		return handleLogin(filePath)
 	},
 }
 
-func handleLogin() error {
+func handleLogin(filePath string) error {
 	fmt.Print("Enter your decryption key (password): ")
 
 	// Read password securely without echoing
@@ -35,11 +45,17 @@ func handleLogin() error {
 	}
 
 	// Store in OS keyring
-	if err := keyring.StoreKey(key); err != nil {
+	if err := keyring.StoreKey(key, filePath); err != nil {
 		return err
 	}
 
-	fmt.Println("✅ Decryption key stored securely in OS keystore")
+	if filePath != "" {
+		fmt.Printf("✅ Decryption key stored securely in OS keystore for %s\n", filePath)
+		_ = history.Record("Login", filePath, "")
+	} else {
+		fmt.Println("✅ Default decryption key stored securely in OS keystore")
+		_ = history.Record("Login", "OS keystore", "")
+	}
 	return nil
 }
 

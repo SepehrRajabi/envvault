@@ -9,17 +9,23 @@ import (
 const (
 	// ServiceName is the keyring service identifier for envvault
 	ServiceName = "envvault"
-	// KeyringKey is the key used to store the decryption key in the keyring
-	KeyringKey = "decryption_key"
+	// DefaultKeyringKey is the default key used when no file path is specified
+	DefaultKeyringKey = "default-decryption-key"
 )
 
-// StoreKey stores the decryption key in the OS keystore
-func StoreKey(key string) error {
+// StoreKey stores the decryption key in the OS keystore.
+// If filePath is empty, stores as default key. Otherwise, uses filePath as the key.
+func StoreKey(key string, filePath string) error {
 	if key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}
 
-	err := kr.Set(ServiceName, KeyringKey, key)
+	keyName := DefaultKeyringKey
+	if filePath != "" {
+		keyName = filePath
+	}
+
+	err := kr.Set(ServiceName, keyName, key)
 	if err != nil {
 		return fmt.Errorf("failed to store key in keyring: %w", err)
 	}
@@ -27,23 +33,45 @@ func StoreKey(key string) error {
 	return nil
 }
 
-// RetrieveKey retrieves the decryption key from the OS keystore
-func RetrieveKey() (string, error) {
-	key, err := kr.Get(ServiceName, KeyringKey)
-	if err != nil {
-		if err == kr.ErrNotFound {
-			return "", fmt.Errorf("key not found in keychain. Run 'envvault login' first")
+// RetrieveKey retrieves the decryption key from the OS keystore.
+// If filePath is provided, tries to get the project-specific key first, then falls back to default.
+// If filePath is empty, retrieves the default key.
+func RetrieveKey(filePath string) (string, error) {
+	keyNames := []string{}
+
+	// Priority order:
+	// 1. If filePath provided, try project-specific key first
+	if filePath != "" {
+		keyNames = append(keyNames, filePath)
+	}
+	// 2. Always try default key as fallback
+	keyNames = append(keyNames, DefaultKeyringKey)
+
+	var lastErr error
+	for _, keyName := range keyNames {
+		key, err := kr.Get(ServiceName, keyName)
+		if err == nil {
+			return key, nil
 		}
-		// Catch the Linux DBus/Secret Service error specifically if possible
-		return "", fmt.Errorf("keychain unavailable (are you on a headless Linux server?): %w", err)
+		lastErr = err
 	}
 
-	return key, nil
+	if lastErr == kr.ErrNotFound {
+		return "", fmt.Errorf("key not found in keychain. Run 'envvault login [vault-file]' first")
+	}
+	// Catch the Linux DBus/Secret Service error specifically if possible
+	return "", fmt.Errorf("keychain unavailable (are you on a headless Linux server?): %w", lastErr)
 }
 
-// DeleteKey removes the decryption key from the OS keystore
-func DeleteKey() error {
-	err := kr.Delete(ServiceName, KeyringKey)
+// DeleteKey removes the decryption key from the OS keystore.
+// If filePath is empty, deletes the default key. Otherwise, deletes the project-specific key.
+func DeleteKey(filePath string) error {
+	keyName := DefaultKeyringKey
+	if filePath != "" {
+		keyName = filePath
+	}
+
+	err := kr.Delete(ServiceName, keyName)
 	if err != nil {
 		return fmt.Errorf("failed to delete key from keyring: %w", err)
 	}
@@ -51,8 +79,10 @@ func DeleteKey() error {
 	return nil
 }
 
-// HasKey checks if a key is stored in the OS keystore
-func HasKey() bool {
-	_, err := RetrieveKey()
+// HasKey checks if a key is stored in the OS keystore.
+// If filePath is provided, checks both project-specific and default keys.
+// If filePath is empty, checks only the default key.
+func HasKey(filePath string) bool {
+	_, err := RetrieveKey(filePath)
 	return err == nil
 }
