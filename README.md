@@ -466,6 +466,81 @@ envvault logout
 
 ---
 
+## Zero-Trust Sharing Commands
+
+### share
+
+Share specific environment variables with a recipient using their Age public key. No password needed, no sharing the entire .env file.
+
+**Usage:**
+```bash
+envvault share [VAR1] [VAR2] ... --with <recipient-pubkey>
+```
+
+**Flags:**
+- `--with <pubkey>`: Recipient's Age public key (required)
+- `--vars-file <path>`: Read variable names from a file (one per line)
+- `--env-file <path>`: Source .env file (default: .env)
+
+**Details:**
+- Extracts only specified variables from your .env file
+- Encrypts them specifically for the recipient's public key
+- Outputs base64 string with `evlt://` prefix
+- Recipient can decrypt with `envvault receive`
+
+**Examples:**
+```bash
+# Share multiple variables
+envvault share DB_PASSWORD API_KEY REDIS_URL --with age1qz...
+
+# Share with wildcard pattern
+envvault share "DB_*" "API_*" --with age1qz...
+
+# Share variables from file
+# vars.txt contains one variable name per line
+envvault share --vars-file vars.txt --with age1qz...
+
+# Share from different source file
+envvault share API_KEY --env-file .env.prod --with age1qz...
+```
+
+---
+
+### receive
+
+Decrypt variables that were shared with you.
+
+**Usage:**
+```bash
+envvault receive <evlt://...>
+```
+
+**Flags:**
+- `--import <path>`: Import variables into this .env file
+- `--output`: Output as shell export statements (for piping)
+
+**Details:**
+- Decrypts variables encrypted for your Age identity
+- Can display, import to file, or output as shell exports
+- No password required (uses your Age private key)
+
+**Examples:**
+```bash
+# Display shared variables
+envvault receive evlt://eyJhbGciOi...
+
+# Load into shell environment
+eval "$(envvault receive evlt://eyJhbGciOi... --output)"
+
+# Import into local .env file
+envvault receive evlt://eyJhbGciOi... --import .env
+
+# Pipe to source
+envvault receive evlt://eyJhbGciOi... --output | source /dev/stdin
+```
+
+---
+
 ## Common Workflows
 
 ### Secure Team Collaboration
@@ -507,6 +582,35 @@ envvault run .env.vault -- npm start
 envvault edit .env.vault
 ```
 
+### Zero-Trust Sharing with Contractors/Partners
+
+```bash
+# Get the contractor's Age public key from them
+CONTRACTOR_KEY="age1qz..."
+
+# Share only specific variables they need
+envvault share API_KEY WEBHOOK_SECRET --with $CONTRACTOR_KEY
+
+# They paste the evlt:// string you send them and decrypt locally
+envvault receive evlt://eyJhbGciOi... --import .env.local
+
+# No need to share entire .env file or add them to your repo
+```
+
+### Multi-Project Key Management
+
+```bash
+# Store project-specific keys in OS keystore
+envvault login project-a/.env.vault  # Stores key for project-a
+envvault login project-b/.env.vault  # Stores key for project-b
+
+# Each command automatically uses the right key
+envvault run project-a/.env.vault -- npm start
+envvault run project-b/.env.vault -- npm start
+
+# No password prompts, keys stored securely per project
+```
+
 ## Safety Features
 
 - **No plaintext on disk**: `envvault run` and `envvault edit` handle decryption in memory
@@ -515,6 +619,7 @@ envvault edit .env.vault
 - **Audit logging**: `envvault history` tracks all operations
 - **Integrity verification**: `envvault verify` detects corruption without password
 - **OS keystore**: `envvault login` stores keys securely
+- **Zero-trust sharing**: Share only what's needed without full file access
 
 
 ---
