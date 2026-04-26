@@ -42,7 +42,7 @@ func ParseSchema(filePath string) (*Schema, error) {
 			return nil, fmt.Errorf("invalid schema line: %s", line)
 		}
 		key := strings.TrimSpace(before)
-		after = strings.TrimSpace(after)
+		after = strings.ToLower(strings.TrimSpace(after))
 		types := []string{}
 		if strings.Contains(after, ",") {
 			types = strings.Split(strings.Split(after, ",")[1], ":")
@@ -78,20 +78,49 @@ func (s *Schema) Validate(envVars []EnvVar) []string {
 			validType := false
 			for _, t := range rule.Types {
 				t = strings.ToLower(t)
-				if t == "string" {
+				switch t {
+				case "string", "str":
 					validType = true
-					break
-				}
-				if t == "number" {
+				case "number":
 					if _, err := strconv.Atoi(value); err == nil {
 						validType = true
-						break
 					}
-				}
-				if t == "boolean" || t == "bool" {
-					if value == "true" || value == "false" || value == "True" || value == "False" || value == "1" || value == "0" {
+					if _, err := strconv.ParseFloat(value, 64); err == nil {
 						validType = true
-						break
+					}
+					if _, err := strconv.ParseInt(value, 10, 64); err == nil {
+						validType = true
+					}
+					if _, err := strconv.ParseUint(value, 10, 64); err == nil {
+						validType = true
+					}
+				case "integer", "int":
+					if _, err := strconv.Atoi(value); err == nil {
+						validType = true
+					}
+					if _, err := strconv.ParseInt(value, 10, 64); err == nil {
+						validType = true
+					}
+					if _, err := strconv.ParseUint(value, 10, 64); err == nil {
+						validType = true
+					}
+				case "unsigned", "uint":
+					if _, err := strconv.ParseUint(value, 10, 64); err == nil {
+						validType = true
+					}
+					if _, err := strconv.Atoi(value); err == nil {
+						if i, _ := strconv.Atoi(value); i >= 0 {
+							validType = true
+						}
+					}
+				case "float":
+					if _, err := strconv.ParseFloat(value, 64); err == nil {
+						validType = true
+					}
+				case "boolean", "bool":
+					value = strings.ToLower(value)
+					if value == "true" || value == "false" || value == "1" || value == "0" {
+						validType = true
 					}
 				}
 			}
