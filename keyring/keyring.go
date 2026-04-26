@@ -31,7 +31,11 @@ func StoreKey(key string) error {
 func RetrieveKey() (string, error) {
 	key, err := kr.Get(ServiceName, KeyringKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to retrieve key from keyring: %w", err)
+		if err == kr.ErrNotFound {
+			return "", fmt.Errorf("key not found in keychain. Run 'envvault login' first")
+		}
+		// Catch the Linux DBus/Secret Service error specifically if possible
+		return "", fmt.Errorf("keychain unavailable (are you on a headless Linux server?): %w", err)
 	}
 
 	return key, nil
