@@ -98,4 +98,4 @@ envvault is designed to be extensible. If you want to add a new encryption algor
 ### Reporting Bugs & Security Vulnerabilities
 
 *   **Bug Reports:** Please use the GitHub Issue Tracker. Include your OS, `envvault` version, steps to reproduce, and expected vs. actual behavior.
-*   **Security Vulnerabilities:** **Please do not report security vulnerabilities via public GitHub issues.** If you discover a flaw in the encryption, key handling, or memory management, please report it responsibly via [INSERT EMAIL OR SECURITY CONTACT METHOD]. We will acknowledge your report within 48 hours and work with you to coordinate a fix and disclosure.
+*   **Security Vulnerabilities:** **Please do not report security vulnerabilities via public GitHub issues.** If you discover a flaw in the encryption, key handling, or memory management, please report it responsibly via sepehrrajabi478@gmail.com. I will acknowledge your report within 48 hours and work with you to coordinate a fix and disclosure.
