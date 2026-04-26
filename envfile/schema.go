@@ -77,6 +77,7 @@ func (s *Schema) Validate(envVars []EnvVar) []string {
 		if exists && len(rule.Types) > 0 {
 			validType := false
 			for _, t := range rule.Types {
+				t = strings.ToLower(t)
 				if t == "string" {
 					validType = true
 					break
@@ -87,8 +88,8 @@ func (s *Schema) Validate(envVars []EnvVar) []string {
 						break
 					}
 				}
-				if t == "boolean" {
-					if value == "true" || value == "false" {
+				if t == "boolean" || t == "bool" {
+					if value == "true" || value == "false" || value == "True" || value == "False" || value == "1" || value == "0" {
 						validType = true
 						break
 					}
