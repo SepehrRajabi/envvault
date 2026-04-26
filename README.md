@@ -516,6 +516,12 @@ envvault edit .env.vault
 - **Integrity verification**: `envvault verify` detects corruption without password
 - **OS keystore**: `envvault login` stores keys securely
 
+
+---
+## 🤝 Contributing
+Interested in contributing to envvault? Please read the **[Contributing Guidelines](CONTRIBUTING.md)** to get started.
+
+
 ## License
 
 MIT
