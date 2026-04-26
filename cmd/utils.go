@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/keyring"
 )
 
 // atomicWrite writes data by first writing to a temp file in the same directory,
@@ -43,6 +44,7 @@ func atomicWrite(path string, data []byte) error {
 
 // getVaultCredentials determines if a vault requires a password or a private key
 // and returns the appropriate credential (or empty byte slice for pubkey vaults).
+// It first checks the OS keyring for a stored key before prompting the user.
 func getVaultCredentials(data []byte) ([]byte, error) {
 	alg, _ := crypto.PeekAlgorithm(data)
 
@@ -50,6 +52,13 @@ func getVaultCredentials(data []byte) ([]byte, error) {
 		// No password needed, the provider will look for the private key automatically
 		return []byte(""), nil
 	}
+
+	// Try to get key from OS keyring first
+	storedKey, err := keyring.RetrieveKey()
+	if err == nil && storedKey != "" {
+		return []byte(storedKey), nil
+	}
+
 	if alg == "shamir-aes256gcm" {
 		threshold, err := crypto.DecodeShamirPayloadThreshold(data)
 		if err != nil {
