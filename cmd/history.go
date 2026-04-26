@@ -66,6 +66,8 @@ var historyCmd = &cobra.Command{
 				actionIcon = "🐳"
 			case "Export":
 				actionIcon = "📤"
+			case "Run":
+				actionIcon = "▶️"
 			}
 
 			algo := "-"

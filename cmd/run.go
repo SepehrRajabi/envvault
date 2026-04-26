@@ -11,6 +11,7 @@ import (
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/envfile"
+	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
 
@@ -122,6 +123,7 @@ var runCmd = &cobra.Command{
 			}
 			return fmt.Errorf("command failed: %w", err)
 		}
+		_ = history.Record("Run", envFilePath, algorithm)
 		return nil
 	},
 }
