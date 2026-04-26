@@ -88,6 +88,8 @@ var lockCmd = &cobra.Command{
 					return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 				}
 			}
+		} else {
+			p = crypto.Default()
 		}
 
 		if !allowInsecure {
