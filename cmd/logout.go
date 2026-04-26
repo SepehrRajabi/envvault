@@ -26,7 +26,7 @@ func handleLogout() error {
 		return err
 	}
 
-	fmt.Println("✓ Decryption key removed from OS keystore")
+	fmt.Println("✅ Decryption key removed from OS keystore")
 	return nil
 }
 

@@ -39,7 +39,7 @@ func handleLogin() error {
 		return err
 	}
 
-	fmt.Println("✓ Decryption key stored securely in OS keystore")
+	fmt.Println("✅ Decryption key stored securely in OS keystore")
 	return nil
 }
 
