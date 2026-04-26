@@ -28,9 +28,10 @@ var diffCmd = &cobra.Command{
 			if isVaultFile(filePath, data) {
 				password := cachedPassword
 
-				// If we don't have a password yet, get it
+				// If we don't have a password yet, try keyring first, then prompt
 				if password == nil {
-					pswd, err := crypto.GetPassword("Enter password for " + filePath + ": ")
+					// Try to get from keyring (file-specific or default)
+					pswd, err := getVaultCredentials(data, filePath)
 					if err != nil {
 						return nil, err
 					}

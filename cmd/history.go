@@ -68,6 +68,10 @@ var historyCmd = &cobra.Command{
 				actionIcon = "📤"
 			case "Run":
 				actionIcon = "▶️"
+			case "Login":
+				actionIcon = "🔑"
+			case "Logout":
+				actionIcon = "🚪"
 			}
 
 			algo := "-"

@@ -35,7 +35,7 @@ var checkCmd = &cobra.Command{
 
 			// Detect if it's a vault file
 			if isVaultFile(filePath, data) {
-				password, err := crypto.GetPassword("Enter password for " + filePath + ": ")
+				password, err := getVaultCredentials(data, filePath)
 				if err != nil {
 					return nil, err
 				}

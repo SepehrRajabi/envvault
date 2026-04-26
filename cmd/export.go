@@ -25,7 +25,7 @@ var exportCmd = &cobra.Command{
 		}
 
 		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
-		password, err := getVaultCredentials(data)
+		password, err := getVaultCredentials(data, filePath)
 		if err != nil {
 			return err
 		}

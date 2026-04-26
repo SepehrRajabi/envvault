@@ -27,7 +27,7 @@ var rotateCmd = &cobra.Command{
 		}
 
 		// 2. Get the current credentials
-		oldPassword, err := getVaultCredentials(data)
+		oldPassword, err := getVaultCredentials(data, filePath)
 		if err != nil {
 			return err
 		}
