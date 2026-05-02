@@ -110,3 +110,27 @@ func isVaultFile(path string, data []byte) bool {
 	}
 	return false
 }
+
+func getVaultInfo(filePath string) (*VaultInfo, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	hdr, err := crypto.Verify(data)
+	if err != nil {
+		return nil, err
+	}
+
+	hasKeyring := false
+	storedKey, err := keyring.RetrieveKey(filePath)
+	if err == nil && storedKey != "" {
+		hasKeyring = true
+	}
+
+	return &VaultInfo{
+		Algorithm:  hdr.Algorithm,
+		HasKeyring: hasKeyring,
+		Version:    hdr.Version,
+	}, nil
+}
