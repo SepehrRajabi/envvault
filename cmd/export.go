@@ -57,7 +57,7 @@ var exportCmd = &cobra.Command{
 		fmt.Printf("%s", out.String())
 
 		alg, _ := crypto.PeekAlgorithm(data)
-		// Print to stdout so it does not interfere with the export command output
+		// Print to std.Stderr so it does not interfere with the export command output
 		fmt.Fprintf(os.Stderr, "🔓 Exported %s \n", filePath)
 		_ = history.Record("Export", "$ENV", alg)
 
