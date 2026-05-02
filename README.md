@@ -34,11 +34,13 @@ envvault run .env.vault -- npm start
 Encrypt an `.env` file into a `.env.vault` file.
 
 **Usage:**
+
 ```bash
 envvault lock [file]
 ```
 
 **Flags:**
+
 - `--algorithm <name>`: Encryption algorithm (default: aes256gcm-argon2id)
 - `-r, --recipient <pubkey>`: Age public key for encryption (use multiple times for multiple recipients)
 - `--shares <number>`: Number of Shamir shares to generate (default: 3)
@@ -48,6 +50,7 @@ envvault lock [file]
 - `--allow-insecure`: Allow insecure algorithms (only for testing)
 
 **Examples:**
+
 ```bash
 # Encrypt with password
 envvault lock .env
@@ -66,15 +69,18 @@ envvault lock .env --algorithm shamir-aes256gcm --shares 3 --threshold 2 --share
 Decrypt a `.env.vault` file back to `.env`.
 
 **Usage:**
+
 ```bash
 envvault unlock [vault-file]
 ```
 
 **Flags:**
+
 - `-o, --output <path>`: Output file path (default: remove `.vault` suffix)
 - `--algorithm <name>`: Override detected algorithm
 
 **Examples:**
+
 ```bash
 # Decrypt to default output file
 envvault unlock .env.vault
@@ -93,21 +99,25 @@ envvault unlock .env.vault
 Edit an encrypted vault in your default editor (`$EDITOR`).
 
 **Usage:**
+
 ```bash
 envvault edit [vault-file]
 ```
 
 **Flags:**
+
 - `-r, --recipient <pubkey>`: Re-encrypt with Age public keys (optional)
 - `--algorithm <name>`: Override detected algorithm
 
 **Details:**
+
 - Decrypts vault into a temporary file
 - Opens in `$EDITOR` for editing
 - Re-encrypts on save with original password (or new recipients if specified)
 - Safely deletes temp file after saving
 
 **Examples:**
+
 ```bash
 # Edit and re-encrypt with original password
 envvault edit .env.vault
@@ -123,20 +133,24 @@ envvault edit .env.vault -r age1abc...
 Re-encrypt a vault with a new password.
 
 **Usage:**
+
 ```bash
 envvault rotate [vault-file]
 ```
 
 **Flags:**
+
 - `--allow-weak`: Allow weak passwords (not recommended)
 - `--algorithm <name>`: Override detected algorithm
 
 **Details:**
+
 - Decrypts vault in memory, re-encrypts with new password
 - Original file updated in-place
 - Unencrypted data never touches disk
 
 **Examples:**
+
 ```bash
 # Change vault password
 envvault rotate .env.vault
@@ -149,11 +163,13 @@ envvault rotate .env.vault
 Compare two `.env` or `.env.vault` files by key.
 
 **Usage:**
+
 ```bash
 envvault diff [file1] [file2]
 ```
 
 **Examples:**
+
 ```bash
 # Compare two vault files
 envvault diff .env.vault .env.prod.vault
@@ -169,17 +185,39 @@ envvault diff .env.vault .env.local
 Export environment variables from a vault in shell format.
 
 **Usage:**
+
 ```bash
 envvault export [vault-file]
 ```
 
 **Flags:**
+
 - `-f, --format <format>`: Output format: `shell`, `json`, `yaml` (default: shell)
 
 **Examples:**
+
 ```bash
 # Export as shell commands
 eval $(envvault export .env.vault)
+```
+
+---
+
+### inspect
+
+Show metadata for a vault file without decrypting it.
+
+**Usage:**
+
+```bash
+envvault inspect [vault-file]
+```
+
+**Examples:**
+
+```bash
+# Inspect a vault file
+envvault inspect .env.vault
 ```
 
 ---
@@ -189,11 +227,13 @@ eval $(envvault export .env.vault)
 Verify vault integrity without decrypting.
 
 **Usage:**
+
 ```bash
 envvault verify [vault-file]
 ```
 
 **Examples:**
+
 ```bash
 # Verify vault integrity
 envvault verify .env.vault
@@ -206,14 +246,17 @@ envvault verify .env.vault
 Generate a new Age X25519 keypair.
 
 **Usage:**
+
 ```bash
 envvault keygen
 ```
 
 **Flags:**
+
 - `-o, --output <path>`: Save private key to file (default: ~/.envvault/keys.txt)
 
 **Examples:**
+
 ```bash
 # Generate keypair
 envvault keygen
@@ -230,15 +273,18 @@ envvault lock .env -r $PUBLIC_KEY
 View audit log of vault operations.
 
 **Usage:**
+
 ```bash
 envvault history
 ```
 
 **Flags:**
+
 - `-l, --limit <number>`: Show last N entries (default: 50)
 - `--clear`: Clear all history
 
 **Examples:**
+
 ```bash
 # Show last 20 operations
 envvault history -l 20
@@ -254,11 +300,13 @@ envvault history --clear
 List available encryption algorithms with security ratings.
 
 **Usage:**
+
 ```bash
 envvault algorithms
 ```
 
 **Examples:**
+
 ```bash
 # List algorithms
 envvault algorithms
@@ -273,14 +321,17 @@ envvault algorithms
 Output decrypted secrets in Docker `--env-file` format.
 
 **Usage:**
+
 ```bash
 envvault docker [vault-file]
 ```
 
 **Flags:**
+
 - `-o, --output <path>`: Save to file instead of stdout
 
 **Examples:**
+
 ```bash
 # Load directly in docker run
 docker run --env-file <(envvault docker .env.vault) myimage
@@ -293,17 +344,20 @@ docker run --env-file <(envvault docker .env.vault) myimage
 Generate a Kubernetes Secret YAML from a vault.
 
 **Usage:**
+
 ```bash
 envvault k8s [vault-file]
 ```
 
 **Flags:**
+
 - `-n, --name <name>`: Secret name (default: derived from filename)
 - `--namespace <namespace>`: Kubernetes namespace (default: default)
 - `-t, --type <type>`: Secret type (default: Opaque)
 - `-o, --output <path>`: Save to file
 
 **Examples:**
+
 ```bash
 # Generate and apply to cluster
 envvault k8s .env.vault | kubectl apply -f -
@@ -319,11 +373,13 @@ envvault k8s .env.prod.vault -n my-secret --namespace production
 Run a command with decrypted environment variables injected in memory.
 
 **Usage:**
+
 ```bash
 envvault run [vaultfile] -- [command] [args...]
 ```
 
 **Examples:**
+
 ```bash
 # Run Node.js server
 envvault run .env.vault -- npm start
@@ -344,11 +400,13 @@ envvault run .env.prod.vault -- docker-compose up
 Check an `.env` file or vault against a schema.
 
 **Usage:**
+
 ```bash
 envvault check [schemafile] [envfile / vaultfile]
 ```
 
 **Examples:**
+
 ```bash
 # Check vault against schema
 envvault check prod.env.schema .env.vault
@@ -361,15 +419,18 @@ envvault check prod.env.schema .env.vault
 Prevent accidental commits of unencrypted `.env` files.
 
 **Usage:**
+
 ```bash
 envvault guard [--init] [--hook]
 ```
 
 **Flags:**
+
 - `--init`: Update `.gitignore` with `.env` patterns
 - `--hook`: Install git pre-commit hook
 
 **Examples:**
+
 ```bash
 # Initialize guards
 envvault guard --init
@@ -385,16 +446,19 @@ envvault guard --hook
 Split a secret into Shamir shares.
 
 **Usage:**
+
 ```bash
 envvault shamir split [secret]
 ```
 
 **Flags:**
+
 - `--shares <number>`: Number of shares (default: 3)
 - `--threshold <number>`: Minimum shares needed (default: 2)
 - `--out-dir <path>`: Save shares to directory
 
 **Examples:**
+
 ```bash
 # Create 5 shares, need 3 to recover
 envvault shamir split "my-secret" --shares 5 --threshold 3
@@ -407,11 +471,13 @@ envvault shamir split "my-secret" --shares 5 --threshold 3
 Combine Shamir shares to recover the secret.
 
 **Usage:**
+
 ```bash
 envvault shamir combine [share1] [share2] ...
 ```
 
 **Examples:**
+
 ```bash
 # Combine shares
 envvault shamir combine share1 share2 share3
@@ -426,11 +492,13 @@ envvault shamir combine share1 share2 share3
 Store decryption key in OS keystore for passwordless access.
 
 **Usage:**
+
 ```bash
 envvault login
 ```
 
 **Details:**
+
 - Stores key securely in:
   - macOS: Keychain
   - Windows: Credential Manager
@@ -438,6 +506,7 @@ envvault login
 - Used automatically by decrypt commands
 
 **Examples:**
+
 ```bash
 # Store key
 envvault login
@@ -454,11 +523,13 @@ envvault run .env.vault -- npm start
 Remove decryption key from OS keystore.
 
 **Usage:**
+
 ```bash
 envvault logout
 ```
 
 **Examples:**
+
 ```bash
 # Remove stored key
 envvault logout
@@ -473,22 +544,26 @@ envvault logout
 Share specific environment variables with a recipient using their Age public key. No password needed, no sharing the entire .env file.
 
 **Usage:**
+
 ```bash
 envvault share [VAR1] [VAR2] ... --with <recipient-pubkey>
 ```
 
 **Flags:**
+
 - `--with <pubkey>`: Recipient's Age public key (required)
 - `--vars-file <path>`: Read variable names from a file (one per line)
 - `--env-file <path>`: Source .env file (default: .env)
 
 **Details:**
+
 - Extracts only specified variables from your .env file
 - Encrypts them specifically for the recipient's public key
 - Outputs base64 string with `evlt://` prefix
 - Recipient can decrypt with `envvault receive`
 
 **Examples:**
+
 ```bash
 # Share multiple variables
 envvault share DB_PASSWORD API_KEY REDIS_URL --with age1qz...
@@ -511,20 +586,24 @@ envvault share API_KEY --env-file .env.prod --with age1qz...
 Decrypt variables that were shared with you.
 
 **Usage:**
+
 ```bash
 envvault receive <evlt://...>
 ```
 
 **Flags:**
+
 - `--import <path>`: Import variables into this .env file
 - `--output`: Output as shell export statements (for piping)
 
 **Details:**
+
 - Decrypts variables encrypted for your Age identity
 - Can display, import to file, or output as shell exports
 - No password required (uses your Age private key)
 
 **Examples:**
+
 ```bash
 # Display shared variables
 envvault receive evlt://eyJhbGciOi...
@@ -621,11 +700,11 @@ envvault run project-b/.env.vault -- npm start
 - **OS keystore**: `envvault login` stores keys securely
 - **Zero-trust sharing**: Share only what's needed without full file access
 
-
 ---
-## 🤝 Contributing
-Interested in contributing to envvault? Please read the **[Contributing Guidelines](CONTRIBUTING.md)** to get started.
 
+## 🤝 Contributing
+
+Interested in contributing to envvault? Please read the **[Contributing Guidelines](CONTRIBUTING.md)** to get started.
 
 ## License
 
