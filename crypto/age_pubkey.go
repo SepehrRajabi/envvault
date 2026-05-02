@@ -11,7 +11,8 @@ import (
 )
 
 type AgePubKeyProvider struct {
-	ID string
+	ID         string
+	Recipients []string
 }
 
 func (a *AgePubKeyProvider) AlgorithmID() string {
@@ -45,6 +46,7 @@ func (a *AgePubKeyProvider) Encrypt(plaintext, publicKeyBytes []byte) ([]byte, e
 		return nil, fmt.Errorf("no valid public keys provided")
 	}
 
+	a.Recipients = keyStrings
 	var buf bytes.Buffer
 	w, err := age.Encrypt(&buf, recipients...)
 	if err != nil {
@@ -116,6 +118,12 @@ func (a *AgePubKeyProvider) Description() ProviderInfo {
 		ID:          a.AlgorithmID(),
 		Description: "Encrypt with recipient's public key. Decrypt with your private key in AGE_IDENTITY or ~/.config/age/keys.txt",
 		Secure:      true,
+	}
+}
+
+func (a *AgePubKeyProvider) Metadata() map[string]any {
+	return map[string]any{
+		"recipients": a.Recipients,
 	}
 }
 

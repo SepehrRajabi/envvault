@@ -14,7 +14,7 @@ type envelopeHeader struct {
 	Algorithm string `json:"alg"`
 	Checksum  string `json:"chk"` // SHA256 of plaintext, hex
 	// ProviderParams is optional extra metadata from the provider
-	ProviderParams map[string]interface{} `json:"params,omitempty"`
+	ProviderParams map[string]any `json:"params,omitempty"`
 }
 
 // Encrypt uses the specified provider (or default) to encrypt data.
@@ -41,6 +41,10 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 		Version:   currentVersion,
 		Algorithm: p.AlgorithmID(),
 		Checksum:  fmt.Sprintf("%x", checksum[:]),
+	}
+
+	if md, ok := p.(ProviderMetadata); ok {
+		hdr.ProviderParams = md.Metadata()
 	}
 
 	hdrJSON, err := json.Marshal(hdr)
@@ -177,9 +181,5 @@ func Verify(data []byte) (*envelopeHeader, error) {
 		return nil, fmt.Errorf("vault uses unknown algorithm %q (provider not registered)", hdr.Algorithm)
 	}
 
-	return &envelopeHeader{
-		Version:   hdr.Version,
-		Algorithm: hdr.Algorithm,
-		Checksum:  hdr.Checksum,
-	}, nil
+	return &hdr, nil
 }

@@ -30,6 +30,12 @@ type ShareExporter interface {
 	GeneratedShares() []string
 }
 
+// ProviderMetadata is an optional interface for providers that expose
+// additional metadata to include in the encrypted envelope header.
+type ProviderMetadata interface {
+	Metadata() map[string]any
+}
+
 // Netadata about an algorithm
 type ProviderInfo struct {
 	ID          string
