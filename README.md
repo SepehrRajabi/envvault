@@ -305,11 +305,18 @@ List available encryption algorithms with security ratings.
 envvault algorithms
 ```
 
+**Flags:**
+
+- `-v, --verbose`: Show detailed algorithm information including descriptions
+
 **Examples:**
 
 ```bash
 # List algorithms
 envvault algorithms
+
+# Show detailed information
+envvault algorithms --verbose
 ```
 
 ---
