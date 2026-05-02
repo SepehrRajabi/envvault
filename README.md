@@ -448,6 +448,49 @@ envvault guard --hook
 
 ---
 
+### status
+
+Show status of all vault files in the current directory.
+
+**Usage:**
+
+```bash
+envvault status
+```
+
+**Details:**
+
+- Displays all `.env*.vault` files in the current directory
+- Shows encryption algorithm used for each vault
+- Indicates whether a decryption key is stored in the OS keystore
+- Displays last modification time for each vault file
+- Shows git protection status (.gitignore configuration and pre-commit hook setup)
+
+**Examples:**
+
+```bash
+# View vault file status
+envvault status
+```
+
+**Output example:**
+
+```
+
+📦 Vault Status
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+File                      Algorithm            Keyring         Last Modified                      
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+prod.env.vault            aes256gcm-argon2id   ✅ Yes           2026-04-17 21:25:11                
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+🔐 Git Protection
+   ✅ .gitignore configured with .env patterns
+   ✅ Pre-commit hook installed
+```
+
+---
+
 ### shamir split
 
 Split a secret into Shamir shares.
