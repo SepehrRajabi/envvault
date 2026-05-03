@@ -65,6 +65,14 @@ var inspectCmd = &cobra.Command{
 			}
 		}
 
+		if hdr.Commit != nil {
+			fmt.Printf("   Git commit:       %s\n", hdr.Commit.Hash)
+			fmt.Printf("   Commit author:    %s\n", hdr.Commit.Author)
+			fmt.Printf("   Commit signer:    %s\n", hdr.Commit.Signer)
+			fmt.Printf("   Signer key:       %s\n", hdr.Commit.SignerKey)
+			fmt.Printf("   Signature status: %s\n", hdr.Commit.SignatureStatus)
+		}
+
 		return nil
 	},
 }

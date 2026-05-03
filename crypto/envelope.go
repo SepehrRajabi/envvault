@@ -15,6 +15,8 @@ type envelopeHeader struct {
 	Checksum  string `json:"chk"` // SHA256 of plaintext, hex
 	// ProviderParams is optional extra metadata from the provider
 	ProviderParams map[string]any `json:"params,omitempty"`
+	// Commit is optional git commit metadata captured at encryption time.
+	Commit *GitCommitMetadata `json:"commit,omitempty"`
 }
 
 // Encrypt uses the specified provider (or default) to encrypt data.
@@ -45,6 +47,10 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 
 	if md, ok := p.(ProviderMetadata); ok {
 		hdr.ProviderParams = md.Metadata()
+	}
+
+	if commitMeta, err := GetGitCommitMetadata(); err == nil && commitMeta != nil {
+		hdr.Commit = commitMeta
 	}
 
 	hdrJSON, err := json.Marshal(hdr)

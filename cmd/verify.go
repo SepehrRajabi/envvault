@@ -30,6 +30,11 @@ var verifyCmd = &cobra.Command{
 		fmt.Printf("   Version:   %d\n", info.Version)
 		fmt.Printf("   Algorithm: %s\n", info.Algorithm)
 		fmt.Printf("   Checksum:  %s...\n", info.Checksum[:16])
+		if info.Commit != nil {
+			fmt.Printf("   Git commit: %s\n", info.Commit.Hash)
+			fmt.Printf("   Commit signer: %s\n", info.Commit.Signer)
+			fmt.Printf("   Signature: %s\n", info.Commit.SignatureStatus)
+		}
 		return nil
 	},
 }
