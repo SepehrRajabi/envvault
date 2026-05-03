@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,6 +43,64 @@ func atomicWrite(path string, data []byte) error {
 	}
 	// Atomically replace the original file
 	return os.Rename(tmpPath, path)
+}
+
+type quorumState struct {
+	VaultPath   string   `json:"vault_path,omitempty"`
+	PayloadHash string   `json:"payload_hash,omitempty"`
+	Threshold   int      `json:"threshold"`
+	Shares      []string `json:"shares,omitempty"`
+}
+
+func quorumStatePath(filePath string) (string, error) {
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256([]byte(absPath))
+	base := filepath.Base(filePath)
+	return filepath.Join(filepath.Dir(absPath), fmt.Sprintf(".envvault-quorum-%s-%x.json", base, hash[:8])), nil
+}
+
+func loadQuorumState(path string) (*quorumState, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var state quorumState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+func saveQuorumState(path string, state *quorumState) error {
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return atomicWrite(path, data)
+}
+
+func clearQuorumState(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil
+	}
+	return os.Remove(path)
+}
+
+func sha256Sum(data []byte) string {
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func isValidBase64(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	_, err := base64.StdEncoding.DecodeString(value)
+	return err == nil
 }
 
 // getVaultCredentials determines if a vault requires a password or a private key
