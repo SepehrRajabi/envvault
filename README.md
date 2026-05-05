@@ -783,6 +783,8 @@ envvault run project-b/.env.vault -- npm start
 
 envvault follows a local-first, zero-trust philosophy. All encryption and decryption happens on your machine. There is no cloud service or central authority.
 
+for more info, see [SECURITY](SECURITY.md)
+
 ## Limitations & Roadmap
 
 ### Current Limitations
