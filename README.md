@@ -502,8 +502,7 @@ envvault status
 
 **Output example:**
 
-```
-
+```shell
 📦 Vault Status
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 File                      Algorithm            Keyring         Last Modified                      
