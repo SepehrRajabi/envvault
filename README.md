@@ -2,7 +2,34 @@
 
 Encrypted `.env` file manager. Lock, unlock, diff, and share environment variables securely across your team.
 
-## Install
+> **⚠️ v0.0.1 Early Beta Release**
+>
+> envvault is in early development. The core functionality works well and has been manually tested extensively, but:
+>
+> There are currently **no automated tests**
+> No external security audit has been performed yet
+>
+> **Use at your own risk**, especially in production or with highly sensitive secrets.
+>
+> Feedback, bug reports, and contributions (especially tests and security review) are extremely welcome!
+
+## Table of Contents
+
+1. [Installation](#installation)
+2. [Quick Start](#quick-start)
+3. [Core Commands](#core-commands)
+4. [Integration Commands](#integration-commands)
+5. [Utility Commands](#utility-commands)
+6. [Authentication & Keystore Commands](#authentication--keystore-commands)
+7. [Zero-Trust Sharing Commands](#zero-trust-sharing-commands)
+8. [Common Workflows](#common-workflows)
+9. [Security Considerations](#security-considerations)
+10. [Limitations & Roadmap](#limitations--roadmap)
+11. [Contributing](#contributing)
+
+---
+
+## Installation
 
 ```bash
 go install github.com/SepehrRajabi/envvault@latest
@@ -752,7 +779,27 @@ envvault run project-b/.env.vault -- npm start
 
 ---
 
-## 🤝 Contributing
+## Security Considerations
+
+envvault follows a local-first, zero-trust philosophy. All encryption and decryption happens on your machine. There is no cloud service or central authority.
+
+## Limitations & Roadmap
+
+### Current Limitations
+
+- No automated test suite yet (highest priority)
+- Temporary files are used during `edit` (deleted after use, but still a theoretical risk)
+- Shamir shares are written to disk by default
+- Limited real-world battle testing
+
+### Roadmap
+
+- Comprehensive test coverage
+- Pre-built binaries and Homebrew formula (via GoReleaser)
+- Improved documentation and examples
+- Possible future support for hardware security keys (YubiKey/PIV)
+
+## Contributing
 
 Interested in contributing to envvault? Please read the **[Contributing Guidelines](CONTRIBUTING.md)** to get started.
 
