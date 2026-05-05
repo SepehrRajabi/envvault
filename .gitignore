@@ -36,7 +36,6 @@ go.work
 # envvault
 *.env
 !*.env.example
-*.vault
 /envvault
 dist/
 .env.*
