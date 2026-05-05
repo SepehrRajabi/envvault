@@ -14,8 +14,13 @@ var diffCmd = &cobra.Command{
 	Short: "Compare two .env or .env.vault files by key",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Shared password cache to avoid double-prompting
-		var cachedPassword []byte
+		// Shared password cache in locked memory to avoid double-prompting
+		var cachedLockedPassword *crypto.LockedBytes
+		defer func() {
+			if cachedLockedPassword != nil {
+				cachedLockedPassword.Unlock()
+			}
+		}()
 
 		// Loader function
 		loadVars := func(filePath string) ([]envfile.EnvVar, error) {
@@ -26,16 +31,25 @@ var diffCmd = &cobra.Command{
 
 			// Detect if it's a vault file
 			if isVaultFile(filePath, data) {
-				password := cachedPassword
+				var lockedPassword *crypto.LockedBytes
 
-				// If we don't have a password yet, try keyring first, then prompt
-				if password == nil {
+				// If we don't have a cached password yet, try keyring first, then prompt
+				if cachedLockedPassword == nil {
 					// Try to get from keyring (file-specific or default)
 					pswd, err := getVaultCredentials(data, filePath)
 					if err != nil {
 						return nil, err
 					}
-					password = pswd
+					// Move the password into locked memory
+					lockedPassword, err = crypto.NewLockedBytesFrom(pswd)
+					if err != nil {
+						return nil, fmt.Errorf("failed to lock password in memory: %w", err)
+					}
+					crypto.SecureWipe(pswd)
+					// Cache it for the next file
+					cachedLockedPassword = lockedPassword
+				} else {
+					lockedPassword = cachedLockedPassword
 				}
 
 				// Try to decrypt
@@ -47,29 +61,37 @@ var diffCmd = &cobra.Command{
 						return nil, fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 					}
 				}
-				decrypted, err := crypto.Decrypt(data, password, p)
+				// Decrypt to locked memory
+				lockedPlaintext, err := crypto.DecryptSecure(data, lockedPassword.Bytes(), p)
 				if err != nil {
 					// If decryption fails and we used a cached password,
 					// maybe the second file has a different password. Prompt again.
-					if cachedPassword != nil {
+					if cachedLockedPassword != nil {
 						fmt.Fprintf(os.Stderr, "⚠️  Password for %s didn't match. Trying again...\n", filePath)
-						password, err = crypto.GetPassword("Enter password for " + filePath + ": ")
+						newPassword, err := crypto.GetPasswordLocked("Enter password for " + filePath + ": ")
 						if err != nil {
 							return nil, err
 						}
-						decrypted, err = crypto.Decrypt(data, password, p)
+						defer newPassword.Unlock()
+
+						lockedPlaintext, err = crypto.DecryptSecure(data, newPassword.Bytes(), p)
 						if err != nil {
 							return nil, fmt.Errorf("decryption failed for %s: %w", filePath, err)
 						}
+						// Cache the new password for the next file
+						cachedLockedPassword.Unlock()
+						newCopy, err := crypto.NewLockedBytesFrom(newPassword.Bytes())
+						if err != nil {
+							return nil, fmt.Errorf("failed to cache password: %w", err)
+						}
+						cachedLockedPassword = newCopy
 					} else {
 						return nil, fmt.Errorf("decryption failed for %s: %w", filePath, err)
 					}
 				}
+				defer lockedPlaintext.Unlock()
 
-				// Cache the successful password for the next file
-				cachedPassword = password
-
-				return envfile.Parse(string(decrypted))
+				return envfile.Parse(string(lockedPlaintext.Bytes()))
 			}
 
 			return envfile.Parse(string(data))

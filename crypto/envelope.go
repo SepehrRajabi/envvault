@@ -69,6 +69,10 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 }
 
 // Decrypt auto-detects algorithm from envelope and routes to correct provider.
+//
+// Deprecated: Use DecryptSecure instead. This function returns plaintext in unprotected
+// memory, making it vulnerable to swapping to disk. DecryptSecure returns plaintext locked
+// in RAM, preventing OS swap attacks.
 func Decrypt(data, password []byte, p Provider) ([]byte, error) {
 	if len(data) < 1 {
 		return nil, fmt.Errorf("empty input")

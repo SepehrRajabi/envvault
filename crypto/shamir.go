@@ -138,7 +138,7 @@ func (s *ShamirAESGCMProvider) Decrypt(payload, password []byte) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("reconstructing secret: %w", err)
 	}
-	defer SecureZero(secret)
+	defer SecureWipe(secret)
 
 	return decryptAESGCMArgon2(ciphertext, secret, salt, nonce, s.Time, s.Memory, s.Threads)
 }

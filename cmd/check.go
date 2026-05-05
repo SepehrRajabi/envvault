@@ -39,6 +39,7 @@ var checkCmd = &cobra.Command{
 				if err != nil {
 					return nil, err
 				}
+				defer crypto.SecureWipe(password)
 
 				// Try to decrypt
 				var p crypto.Provider
@@ -49,12 +50,13 @@ var checkCmd = &cobra.Command{
 						return nil, fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 					}
 				}
-				decrypted, err := crypto.Decrypt(data, password, p)
+				lockedPlaintext, err := crypto.DecryptSecure(data, password, p)
 				if err != nil {
 					return nil, fmt.Errorf("decrypting failed for %s: %w", filePath, err)
 				}
+				defer lockedPlaintext.Unlock()
 
-				return envfile.Parse(string(decrypted))
+				return envfile.Parse(string(lockedPlaintext.Bytes()))
 			}
 
 			return envfile.Parse(string(data))

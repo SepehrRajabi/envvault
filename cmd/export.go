@@ -29,8 +29,9 @@ var exportCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer crypto.SecureWipe(password)
 
-		// 3. Decrypt
+		// 3. Decrypt to locked memory
 		var p crypto.Provider
 		if algorithm != "" {
 			p, err = crypto.GetProvider(algorithm)
@@ -38,10 +39,13 @@ var exportCmd = &cobra.Command{
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 			}
 		}
-		decrypted, err := crypto.Decrypt(data, password, p)
+		lockedPlaintext, err := crypto.DecryptSecure(data, password, p)
 		if err != nil {
 			return fmt.Errorf("decryption failed: %w", err)
 		}
+		defer lockedPlaintext.Unlock()
+
+		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure
 		if _, err := envfile.Parse(string(decrypted)); err != nil {

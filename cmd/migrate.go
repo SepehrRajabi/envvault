@@ -34,8 +34,9 @@ var migrateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer crypto.SecureWipe(password)
 
-		// 3. Decrypt with old algorithm
+		// 3. Decrypt with old algorithm to locked memory
 		var oldProvider crypto.Provider
 		if from != "" {
 			oldProvider, err = crypto.GetProvider(from)
@@ -43,10 +44,13 @@ var migrateCmd = &cobra.Command{
 				return fmt.Errorf("unknown old algorithm %q: %w", from, err)
 			}
 		}
-		decrypted, err := crypto.Decrypt(data, password, oldProvider)
+		lockedPlaintext, err := crypto.DecryptSecure(data, password, oldProvider)
 		if err != nil {
 			return fmt.Errorf("decryption failed: %w", err)
 		}
+		defer lockedPlaintext.Unlock()
+
+		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Encrypt with new algorithm
 		var newProvider crypto.Provider
