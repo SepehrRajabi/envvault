@@ -17,7 +17,7 @@ The challenges are organized by the version of the `envvault` binary used to cre
 
 | Version | Difficulty | Focus | Primary Barrier |
 | :--- | :--- | :--- | :--- |
-| **v1.x** | 🟢 Easy $\rightarrow$ 🟡 Med | KDF & Entropy | Password Strength & Iterations |
+| **v1.x** | 🟢 Easy $\rightarrow$ 🟡 Med | Argon2id | Password Strength & Iterations |
 | **v2.x** | 🟠 Hard | Memory Hardening | Argon2id & Memory Costs |
 | **v3.x** | 🔴 Impossible | Public Key Infra | Age X25519 & Zero-Knowledge |
 
