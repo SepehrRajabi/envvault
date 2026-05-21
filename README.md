@@ -329,22 +329,26 @@ List available encryption algorithms with security ratings.
 **Usage:**
 
 ```bash
-envvault algorithms
+envvault algorithms [--secure]
 ```
 
 **Flags:**
 
 - `-v, --verbose`: Show detailed algorithm information including descriptions
+- `-s, --secure`: Show only secure algorithms
 
 **Examples:**
 
 ```bash
-# List algorithms
+# List available algorithms
 envvault algorithms
 
-# Show detailed information
+# Show only secure algorithms
+envvault algorithms --secure
+
+# Show detailed information for each algorithm
 envvault algorithms --verbose
-```
+``` 
 
 ---
 
@@ -570,7 +574,7 @@ Store decryption key in OS keystore for passwordless access.
 **Usage:**
 
 ```bash
-envvault login
+envvault login [vault-file]
 ```
 
 **Details:**
@@ -578,16 +582,21 @@ envvault login
 - Stores key securely in:
   - macOS: Keychain
   - Windows: Credential Manager
-  - Linux: Secret Service / gnome-keyring
-- Used automatically by decrypt commands
+  - Linux: Secret Service / GNOME Keyring
+- If `[vault-file]` is provided, the key is stored for that specific file.
+- If no file is provided, the key is stored as the default fallback.
+- Used automatically by decrypt and run commands.
 
 **Examples:**
 
 ```bash
-# Store key
+# Store a default decryption key
 envvault login
 
-# Commands now work without password
+# Store a project-specific key for one vault file
+envvault login project-a/.env.vault
+
+# Commands now work without password for the matching vault file
 envvault unlock .env.vault
 envvault run .env.vault -- npm start
 ```
