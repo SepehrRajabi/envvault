@@ -20,7 +20,9 @@ func init() {
 		SaltLen:  32,
 		NonceLen: 12,
 	}
-	Register(defaultAES)
+	if err := Register(defaultAES); err != nil {
+		panic(err)
+	}
 }
 
 // AESGCMProvider implements AES-256-GCM with Argon2id key derivation.

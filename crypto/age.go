@@ -86,5 +86,7 @@ func (a *AgeProvider) Description() ProviderInfo {
 }
 
 func init() {
-	Register(&AgeProvider{ID: "age-passphrase"})
+	if err := Register(&AgeProvider{ID: "age-passphrase"}); err != nil {
+		panic(err)
+	}
 }

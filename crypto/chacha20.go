@@ -170,5 +170,7 @@ func (c *ChaCha20Provider) Description() ProviderInfo {
 }
 
 func init() {
-	Register(&ChaCha20Provider{})
+	if err := Register(&ChaCha20Provider{}); err != nil {
+		panic(err)
+	}
 }

@@ -240,5 +240,7 @@ func poly1305Verify(key [32]byte, message, tag []byte) bool {
 }
 
 func init() {
-	Register(&ChaCha20Poly1305Provider{ID: "chacha20poly1305"})
+	if err := Register(&ChaCha20Poly1305Provider{ID: "chacha20poly1305"}); err != nil {
+		panic(err)
+	}
 }

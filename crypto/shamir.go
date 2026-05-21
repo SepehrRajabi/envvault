@@ -49,7 +49,9 @@ func init() {
 		Shares:    5,
 		Threshold: 3,
 	}
-	Register(defaultShamir)
+	if err := Register(defaultShamir); err != nil {
+		panic(err)
+	}
 }
 
 func (s *ShamirAESGCMProvider) AlgorithmID() string {

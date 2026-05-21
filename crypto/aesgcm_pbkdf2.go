@@ -21,7 +21,9 @@ func init() {
 		SaltLen:    32,
 		NonceLen:   12,
 	}
-	Register(pbkdf2Provider)
+	if err := Register(pbkdf2Provider); err != nil {
+		panic(err)
+	}
 }
 
 // AESGCMPbkdf2Provider implements AES-256-GCM with PBKDF2 key derivation.

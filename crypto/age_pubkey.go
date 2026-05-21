@@ -139,5 +139,7 @@ func parseKeyFile(path string) ([]age.Identity, error) {
 }
 
 func init() {
-	Register(&AgePubKeyProvider{ID: "age-pubkey"})
+	if err := Register(&AgePubKeyProvider{ID: "age-pubkey"}); err != nil {
+		panic(err)
+	}
 }
