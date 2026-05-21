@@ -49,6 +49,6 @@ var algCmd = &cobra.Command{
 
 func init() {
 	algCmd.Flags().BoolVarP(&verboseAlgorithms, "verbose", "v", false, "Show detailed algorithm information")
-	algCmd.Flags().BoolVarP(&onlySecureAlgorithms, "secure", "s", true, "Show only secure algorithms")
+	algCmd.Flags().BoolVarP(&onlySecureAlgorithms, "secure", "s", false, "Show only secure algorithms")
 	rootCmd.AddCommand(algCmd)
 }
