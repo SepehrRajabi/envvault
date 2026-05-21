@@ -7,9 +7,9 @@ var (
 	ErrInvalidPayload  = errors.New("invalid payload, too short to contain salt and nonce")
 )
 
-type ChaChaProvider struct{}
+type ChaCha20Provider struct{}
 
-func (c *ChaChaProvider) AlgorithmID() string {
+func (c *ChaCha20Provider) AlgorithmID() string {
 	return "chacha20"
 }
 
@@ -85,7 +85,7 @@ func generateKeyStream(key, nonce []byte, blockCount uint32) []byte {
 	return keyStream
 }
 
-func (c *ChaChaProvider) Encrypt(plaintext, password []byte) ([]byte, error) {
+func (c *ChaCha20Provider) Encrypt(plaintext, password []byte) ([]byte, error) {
 	if len(password) == 0 {
 		return nil, ErrInvalidPassword
 	}
@@ -127,7 +127,7 @@ func (c *ChaChaProvider) Encrypt(plaintext, password []byte) ([]byte, error) {
 	return output, nil
 }
 
-func (c *ChaChaProvider) Decrypt(payload, password []byte) ([]byte, error) {
+func (c *ChaCha20Provider) Decrypt(payload, password []byte) ([]byte, error) {
 	// 1. Validate payload length (must contain at least 16 bytes salt + 12 bytes nonce)
 	if len(payload) < 28 {
 		return nil, ErrInvalidPayload
@@ -161,7 +161,7 @@ func (c *ChaChaProvider) Decrypt(payload, password []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-func (c *ChaChaProvider) Description() ProviderInfo {
+func (c *ChaCha20Provider) Description() ProviderInfo {
 	return ProviderInfo{
 		ID:          c.AlgorithmID(),
 		Description: "ChaCha20 encryption (unauthenticated)",
@@ -170,5 +170,5 @@ func (c *ChaChaProvider) Description() ProviderInfo {
 }
 
 func init() {
-	Register(&ChaChaProvider{})
+	Register(&ChaCha20Provider{})
 }
