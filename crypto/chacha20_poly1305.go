@@ -6,10 +6,12 @@ import (
 	"errors"
 )
 
-type ChaCha20Poly1305Provider struct{}
+type ChaCha20Poly1305Provider struct {
+	ID string
+}
 
 func (c *ChaCha20Poly1305Provider) AlgorithmID() string {
-	return "chacha20poly1305"
+	return c.ID
 }
 
 func (c *ChaCha20Poly1305Provider) Encrypt(plaintext, password []byte) ([]byte, error) {
@@ -99,7 +101,7 @@ func (c *ChaCha20Poly1305Provider) Decrypt(payload, password []byte) ([]byte, er
 
 func (c *ChaCha20Poly1305Provider) Description() ProviderInfo {
 	return ProviderInfo{
-		ID:          "ChaCha20-Poly1305",
+		ID:          c.ID,
 		Description: "An authenticated encryption scheme combining ChaCha20 stream cipher with Poly1305 MAC for integrity.",
 		Secure:      true,
 	}
@@ -238,5 +240,5 @@ func poly1305Verify(key [32]byte, message, tag []byte) bool {
 }
 
 func init() {
-	Register(&ChaCha20Poly1305Provider{})
+	Register(&ChaCha20Poly1305Provider{ID: "chacha20poly1305"})
 }
