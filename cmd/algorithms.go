@@ -8,7 +8,10 @@ import (
 	"github.com/SepehrRajabi/envvault/crypto"
 )
 
-var verboseAlgorithms bool
+var (
+	verboseAlgorithms    bool
+	onlySecureAlgorithms bool
+)
 
 var algCmd = &cobra.Command{
 	Use:   "algorithms",
@@ -16,7 +19,7 @@ var algCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if verboseAlgorithms {
 			fmt.Println("Available algorithms:")
-			for _, info := range crypto.ListProviders() {
+			for _, info := range crypto.ListProviders(onlySecureAlgorithms) {
 				marker := " "
 				if info.ID == crypto.Default().AlgorithmID() {
 					marker = "*"
@@ -33,7 +36,7 @@ var algCmd = &cobra.Command{
 			fmt.Println("\n* = default")
 
 			fmt.Println("Available algorithms:")
-			for _, info := range crypto.ListProviders() {
+			for _, info := range crypto.ListProviders(onlySecureAlgorithms) {
 				marker := " "
 				if info.ID == crypto.Default().AlgorithmID() {
 					marker = "*"
@@ -46,5 +49,6 @@ var algCmd = &cobra.Command{
 
 func init() {
 	algCmd.Flags().BoolVarP(&verboseAlgorithms, "verbose", "v", false, "Show detailed algorithm information")
+	algCmd.Flags().BoolVarP(&onlySecureAlgorithms, "secure", "s", false, "Show only secure algorithms")
 	rootCmd.AddCommand(algCmd)
 }
