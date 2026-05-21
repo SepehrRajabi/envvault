@@ -117,6 +117,9 @@ func initGitignore() error {
 		line := strings.TrimSpace(scanner.Text())
 		existingLines[line] = true
 	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("reading .gitignore: %w", err)
+	}
 
 	// Patterns to add
 	patterns := []string{
