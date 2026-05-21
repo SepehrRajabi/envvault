@@ -31,8 +31,9 @@ var rotateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer crypto.SecureWipe(oldPassword)
 
-		// 3. Decrypt in-memory
+		// 3. Decrypt in-memory to locked memory
 		var p crypto.Provider
 		if algorithm != "" {
 			p, err = crypto.GetProvider(algorithm)
@@ -40,10 +41,13 @@ var rotateCmd = &cobra.Command{
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 			}
 		}
-		decryped, err := crypto.Decrypt(data, oldPassword, p)
+		lockedPlaintext, err := crypto.DecryptSecure(data, oldPassword, p)
 		if err != nil {
 			return fmt.Errorf("decryption failed: incorrect password or corrupted file")
 		}
+		defer lockedPlaintext.Unlock()
+
+		decryped := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure
 		if _, err := envfile.Parse(string(decryped)); err != nil {

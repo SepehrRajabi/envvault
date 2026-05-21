@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -11,6 +12,16 @@ import (
 )
 
 const shamirPayloadVersion = 1
+
+var (
+	ErrorPayloadTooSmall    = errors.New("payload too small")
+	ErrorNonEmptySecret     = errors.New("secret cannot be empty")
+	ErrorMissingCiphertext  = errors.New("payload missing ciphertext")
+	ErrorInvalidPayload     = errors.New("invalid payload")
+	ErrorInvalidThreshold   = errors.New("invalid threshold")
+	ErrorInvalidShareLength = errors.New("invalid share length")
+	ErrorNoSharesProvided   = errors.New("no shares provided")
+)
 
 // ShamirAESGCMProvider encrypts with AES-GCM and requires K-of-N Shamir shares
 // to reconstruct the secret used for key derivation.
@@ -59,7 +70,7 @@ func (s *ShamirAESGCMProvider) GeneratedShares() []string {
 
 func (s *ShamirAESGCMProvider) Encrypt(plaintext, password []byte) ([]byte, error) {
 	if len(password) == 0 {
-		return nil, fmt.Errorf("secret cannot be empty")
+		return nil, ErrorNonEmptySecret
 	}
 	if s.Threshold < 2 || s.Threshold > 255 {
 		return nil, fmt.Errorf("invalid threshold %d (must be 2-255)", s.Threshold)
@@ -102,7 +113,7 @@ func (s *ShamirAESGCMProvider) Encrypt(plaintext, password []byte) ([]byte, erro
 
 func (s *ShamirAESGCMProvider) Decrypt(payload, password []byte) ([]byte, error) {
 	if len(payload) < 4 {
-		return nil, fmt.Errorf("payload too small")
+		return nil, ErrorPayloadTooSmall
 	}
 	if payload[0] != shamirPayloadVersion {
 		return nil, fmt.Errorf("unsupported shamir payload version: %d", payload[0])
@@ -112,18 +123,18 @@ func (s *ShamirAESGCMProvider) Decrypt(payload, password []byte) ([]byte, error)
 	saltLen := int(payload[2])
 	nonceLen := int(payload[3])
 	if threshold < 2 {
-		return nil, fmt.Errorf("invalid threshold in payload")
+		return nil, ErrorInvalidThreshold
 	}
 
 	headerLen := 4
 	if len(payload) < headerLen+saltLen+nonceLen {
-		return nil, fmt.Errorf("payload truncated")
+		return nil, ErrorInvalidPayload
 	}
 	salt := payload[headerLen : headerLen+saltLen]
 	nonce := payload[headerLen+saltLen : headerLen+saltLen+nonceLen]
 	ciphertext := payload[headerLen+saltLen+nonceLen:]
 	if len(ciphertext) == 0 {
-		return nil, fmt.Errorf("payload missing ciphertext")
+		return nil, ErrorMissingCiphertext
 	}
 
 	shares, err := parseSharesInput(password)
@@ -138,7 +149,7 @@ func (s *ShamirAESGCMProvider) Decrypt(payload, password []byte) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("reconstructing secret: %w", err)
 	}
-	defer SecureZero(secret)
+	defer SecureWipe(secret)
 
 	return decryptAESGCMArgon2(ciphertext, secret, salt, nonce, s.Time, s.Memory, s.Threads)
 }
@@ -146,14 +157,14 @@ func (s *ShamirAESGCMProvider) Decrypt(payload, password []byte) ([]byte, error)
 func parseSharesInput(input []byte) ([][]byte, error) {
 	raw := strings.TrimSpace(string(input))
 	if raw == "" {
-		return nil, fmt.Errorf("no shares provided")
+		return nil, ErrorNoSharesProvided
 	}
 
 	parts := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == '\n' || r == '\r' || r == ';' || r == ' ' || r == '\t'
 	})
 	if len(parts) == 0 {
-		return nil, fmt.Errorf("no shares provided")
+		return nil, ErrorNoSharesProvided
 	}
 
 	return decodeBase64Shares(parts)
@@ -199,7 +210,7 @@ func splitSecret(secret []byte, n, k int) ([][]byte, error) {
 		return nil, fmt.Errorf("invalid shamir params n=%d k=%d", n, k)
 	}
 	if len(secret) == 0 {
-		return nil, fmt.Errorf("secret cannot be empty")
+		return nil, ErrorNonEmptySecret
 	}
 
 	shares := make([][]byte, n)
@@ -230,7 +241,7 @@ func combineShares(shares [][]byte) ([]byte, error) {
 
 	shareLen := len(shares[0])
 	if shareLen < 2 {
-		return nil, fmt.Errorf("invalid share length")
+		return nil, ErrorInvalidShareLength
 	}
 
 	xs := make(map[byte]struct{}, len(shares))

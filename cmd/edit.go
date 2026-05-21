@@ -38,8 +38,10 @@ var editCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		// Ensure password is wiped after decryption
+		defer crypto.SecureWipe(password)
 
-		// 3. Decrypt
+		// 3. Decrypt into locked memory to prevent swapping to disk
 		var p crypto.Provider
 		if algorithm != "" {
 			p, err = crypto.GetProvider(algorithm)
@@ -47,10 +49,13 @@ var editCmd = &cobra.Command{
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 			}
 		}
-		decrypted, err := crypto.Decrypt(data, password, p)
+		lockedPlaintext, err := crypto.DecryptSecure(data, password, p)
 		if err != nil {
 			return fmt.Errorf("decryption failed: %w", err)
 		}
+		defer lockedPlaintext.Unlock()
+
+		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure before editing
 		if _, err := envfile.Parse(string(decrypted)); err != nil {

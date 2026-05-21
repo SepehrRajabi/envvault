@@ -42,8 +42,9 @@ var unlockCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer crypto.SecureWipe(password)
 
-		// 3. Decrypt
+		// 3. Decrypt to locked memory
 		var p crypto.Provider
 		if algorithm != "" {
 			p, err = crypto.GetProvider(algorithm)
@@ -51,10 +52,13 @@ var unlockCmd = &cobra.Command{
 				return fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 			}
 		}
-		decrypted, err := crypto.Decrypt(data, password, p)
+		lockedPlaintext, err := crypto.DecryptSecure(data, password, p)
 		if err != nil {
 			return fmt.Errorf("decryption failed: %w", err)
 		}
+		defer lockedPlaintext.Unlock()
+
+		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure
 		if _, err := envfile.Parse(string(decrypted)); err != nil {
@@ -168,10 +172,14 @@ func unlockWithShamirQuorum(filePath string, data []byte) error {
 
 	// Enough shares have been collected.
 	password := []byte(strings.Join(state.Shares[:threshold], ","))
-	decrypted, err := crypto.Decrypt(data, password, nil)
+	defer crypto.SecureWipe(password)
+	lockedPlaintext, err := crypto.DecryptSecure(data, password, nil)
 	if err != nil {
 		return fmt.Errorf("decryption failed after collecting quorum shares: %w", err)
 	}
+	defer lockedPlaintext.Unlock()
+
+	decrypted := lockedPlaintext.Bytes()
 
 	if err := clearQuorumState(statePath); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: failed to remove quorum state file %s: %v\n", statePath, err)

@@ -36,10 +36,12 @@ var runCmd = &cobra.Command{
 
 			// Detect if it's a vault file
 			if isVaultFile(filePath, data) {
-				password, err := crypto.GetPassword("Enter password for " + filePath + ": ")
+				// Read password into locked memory to prevent swapping
+				lockedPassword, err := crypto.GetPasswordLocked("Enter password for " + filePath + ": ")
 				if err != nil {
 					return nil, err
 				}
+				defer lockedPassword.Unlock()
 
 				// Try to decrypt
 				var p crypto.Provider
@@ -50,12 +52,14 @@ var runCmd = &cobra.Command{
 						return nil, fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
 					}
 				}
-				decrypted, err := crypto.Decrypt(data, password, p)
+				// Decrypt to locked memory to prevent swapping
+				lockedPlaintext, err := crypto.DecryptSecure(data, lockedPassword.Bytes(), p)
 				if err != nil {
 					return nil, fmt.Errorf("decrypting failed for %s: %w", filePath, err)
 				}
+				defer lockedPlaintext.Unlock()
 
-				return envfile.Parse(string(decrypted))
+				return envfile.Parse(string(lockedPlaintext.Bytes()))
 			}
 			return envfile.Parse(string(data))
 		}

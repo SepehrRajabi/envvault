@@ -110,7 +110,7 @@ func encryptWithDerivedKeyAESGCM(
 	threads uint8,
 ) ([]byte, error) {
 	key := argon2.IDKey(password, salt, time, memory, threads, 32)
-	defer SecureZero(key)
+	defer SecureWipe(key)
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -131,7 +131,7 @@ func decryptWithDerivedKeyAESGCM(
 	threads uint8,
 ) ([]byte, error) {
 	key := argon2.IDKey(password, salt, time, memory, threads, 32)
-	defer SecureZero(key)
+	defer SecureWipe(key)
 
 	block, err := aes.NewCipher(key)
 	if err != nil {

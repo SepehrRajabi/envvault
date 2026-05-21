@@ -1,10 +1,12 @@
 package crypto
 
 import (
+	"bufio"
 	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/nbutton23/zxcvbn-go"
 	"golang.org/x/crypto/argon2"
@@ -77,11 +79,22 @@ func GetPassword(prompt string) ([]byte, error) {
 	return readPassword(prompt)
 }
 
-// SecureZero overwrites a byte slice with zeros.
-// This is a best-effort attempt to clear sensitive data from memory.
-// Note: Go's garbage collector may have copied the data elsewhere.
-func SecureZero(b []byte) {
-	for i := range b {
-		b[i] = 0
+func IsBeingTraced() (bool, error) {
+	file, err := os.Open("/proc/self/status")
+	if err != nil {
+		return false, err
 	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "TracerPid:") {
+			fields := strings.Fields(line)
+			if len(fields) > 1 && fields[1] != "0" {
+				return true, nil
+			}
+		}
+	}
+	return false, scanner.Err()
 }

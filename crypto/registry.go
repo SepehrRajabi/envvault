@@ -65,12 +65,15 @@ func GetProvider(id string) (Provider, error) {
 	return nil, ErrProviderNotFound
 }
 
-func ListProviders() []ProviderInfo {
+func ListProviders(onlySecure bool) []ProviderInfo {
 	mu.Lock()
 	defer mu.Unlock()
 
 	var providers []ProviderInfo
 	for _, p := range registry {
+		if onlySecure && !p.Description().Secure {
+			continue
+		}
 		providers = append(providers, p.Description())
 	}
 	return providers
