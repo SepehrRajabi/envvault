@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/history"
 	"github.com/spf13/cobra"
 )
 
@@ -42,6 +43,7 @@ var keysAddCmd = &cobra.Command{
 		}
 		hdr.ProviderParams["recipients"] = append(hdr.ProviderParams["recipients"].([]any), extraInfo)
 
+		_ = history.Record("AddKey", filePath, hdr.Algorithm)
 		fmt.Printf("Added key '%s' with public key: %s and role: %s\n", name, pubKey, role)
 		return nil
 	},
@@ -83,6 +85,7 @@ var keysRemoveCmd = &cobra.Command{
 
 		hdr.ProviderParams["recipients"] = updatedRecipients
 
+		_ = history.Record("RemoveKey", filePath, hdr.Algorithm)
 		fmt.Printf("Removed key: %s\n", name)
 		return nil
 	},

@@ -74,6 +74,10 @@ var historyCmd = &cobra.Command{
 				actionIcon = "🚪"
 			case "Migrate":
 				actionIcon = "🔀"
+			case "AddKey":
+				actionIcon = "➕"
+			case "RemoveKey":
+				actionIcon = "➖"
 			}
 
 			algo := "-"
