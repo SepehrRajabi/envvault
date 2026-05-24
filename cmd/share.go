@@ -14,10 +14,11 @@ import (
 var (
 	shareWith     string
 	shareVarsFile string
+	shareTTL      uint
 )
 
 var shareCmd = &cobra.Command{
-	Use:   "share [env-file / vault-file] [VAR1] [VAR2] ... --with <recipient-pubkey>",
+	Use:   "share [env-file / vault-file] [VAR1] [VAR2] ... --with <recipient-pubkey> --ttl <seconds>",
 	Short: "Share specific variables with a recipient using their Age public key",
 	Long: `Extract and encrypt specific environment variables for a recipient.
 
@@ -35,6 +36,10 @@ The recipient can decrypt it with: envvault receive <base64_string>`,
 		}
 
 		filePath := args[0]
+		ttl, err := cmd.Flags().GetUint("ttl")
+		if err != nil {
+			return fmt.Errorf("invalid ttl value: %w", err)
+		}
 
 		var filters []string
 
@@ -117,7 +122,7 @@ The recipient can decrypt it with: envvault receive <base64_string>`,
 		}
 
 		// Encrypt and encode
-		encoded, err := crypto.EncodeShare(selectedVars, shareWith)
+		encoded, err := crypto.EncodeShare(selectedVars, shareWith, uint(ttl))
 		if err != nil {
 			return err
 		}
@@ -161,6 +166,7 @@ func shortenPublicKey(key string) string {
 func init() {
 	shareCmd.Flags().StringVar(&shareWith, "with", "", "Recipient's Age public key (required)")
 	shareCmd.Flags().StringVar(&shareVarsFile, "vars-file", "", "File containing variable names (one per line)")
+	shareCmd.Flags().UintVar(&shareTTL, "ttl", 0, "Expire the shared payload after N seconds")
 	shareCmd.MarkFlagRequired("with")
 
 	rootCmd.AddCommand(shareCmd)
