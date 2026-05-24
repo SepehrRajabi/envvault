@@ -217,10 +217,6 @@ Export environment variables from a vault in shell format.
 envvault export [vault-file]
 ```
 
-**Flags:**
-
-- `-f, --format <format>`: Output format: `shell`, `json`, `yaml` (default: shell)
-
 **Examples:**
 
 ```bash
@@ -291,6 +287,51 @@ envvault keygen
 # Get public key for encryption
 PUBLIC_KEY=$(envvault keygen)
 envvault lock .env -r $PUBLIC_KEY
+```
+
+---
+
+### keys add
+
+Add a new recipient key to a vault file.
+
+**Usage:**
+
+```bash
+envvault keys add [vault-file] [name] [public-key]
+```
+
+**Flags:**
+
+- `--role <role>`: Role for the key (optional)
+
+**Examples:**
+
+```bash
+# Add a recipient key to a vault
+envvault keys add .env.vault alice age1abc...
+
+# Add a recipient key with a role label
+envvault keys add .env.vault db-service age1xyz... --role "database"
+```
+
+---
+
+### keys remove
+
+Remove a recipient key from a vault file.
+
+**Usage:**
+
+```bash
+envvault keys remove [vault-file] [name]
+```
+
+**Examples:**
+
+```bash
+# Remove a recipient key by name
+envvault keys remove .env.vault alice
 ```
 
 ---
@@ -626,42 +667,41 @@ envvault logout
 
 ### share
 
-Share specific environment variables with a recipient using their Age public key. No password needed, no sharing the entire .env file.
+Share specific environment variables with a recipient using their Age public key.
 
 **Usage:**
 
 ```bash
-envvault share [VAR1] [VAR2] ... --with <recipient-pubkey>
+envvault share [env-file | vault-file] [VAR1] [VAR2] ... --with <recipient-pubkey>
 ```
 
 **Flags:**
 
 - `--with <pubkey>`: Recipient's Age public key (required)
 - `--vars-file <path>`: Read variable names from a file (one per line)
-- `--env-file <path>`: Source .env file (default: .env)
 
 **Details:**
 
-- Extracts only specified variables from your .env file
-- Encrypts them specifically for the recipient's public key
-- Outputs base64 string with `evlt://` prefix
-- Recipient can decrypt with `envvault receive`
+- Reads your source file as either a plain `.env` or a `.env.vault` file
+- Supports direct variable names, wildcard patterns, or a vars file
+- Encrypts only the selected variables for the recipient's Age public key
+- Outputs a shareable `evlt://` payload
+- Recipient decrypts it with `envvault receive`
 
 **Examples:**
 
 ```bash
-# Share multiple variables
-envvault share DB_PASSWORD API_KEY REDIS_URL --with age1qz...
+# Share multiple variables from a local .env file
+envvault share .env DB_PASSWORD API_KEY REDIS_URL --with age1qz...
 
-# Share with wildcard pattern
-envvault share "DB_*" "API_*" --with age1qz...
+# Share with wildcard patterns from an env file
+envvault share .env "DB_*" "API_*" --with age1qz...
 
-# Share variables from file
-# vars.txt contains one variable name per line
-envvault share --vars-file vars.txt --with age1qz...
+# Share variables from a vars file
+envvault share .env --vars-file vars.txt --with age1qz...
 
-# Share from different source file
-envvault share API_KEY --env-file .env.prod --with age1qz...
+# Share from a vault file
+envvault share .env.vault API_KEY --with age1qz...
 ```
 
 ---
