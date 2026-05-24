@@ -87,6 +87,11 @@ func DecodeShare(sharedString string) (map[string]string, error) {
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
+	// Check expiration
+	if payload.ExpiresAt > 0 && time.Now().Unix() > payload.ExpiresAt {
+		return nil, fmt.Errorf("the shared data has expired")
+	}
+
 	// Decode data from base64
 	encrypted, err := base64.StdEncoding.DecodeString(payload.Data)
 	if err != nil {
