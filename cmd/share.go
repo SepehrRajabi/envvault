@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
@@ -17,7 +18,7 @@ var (
 )
 
 var shareCmd = &cobra.Command{
-	Use:   "share [VAR1] [VAR2] ... --with <recipient-pubkey>",
+	Use:   "share [env-file / vault-file] [VAR1] [VAR2] ... --with <recipient-pubkey>",
 	Short: "Share specific variables with a recipient using their Age public key",
 	Long: `Extract and encrypt specific environment variables for a recipient.
 
@@ -28,10 +29,13 @@ Supports multiple ways to specify variables:
 
 The output is a base64 string prefixed with 'evlt://' that can be shared via any channel.
 The recipient can decrypt it with: envvault receive <base64_string>`,
+	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if shareWith == "" {
 			return fmt.Errorf("--with flag is required (recipient's Age public key)")
 		}
+
+		filePath := args[0]
 
 		var filters []string
 
@@ -51,21 +55,56 @@ The recipient can decrypt it with: envvault receive <base64_string>`,
 			return fmt.Errorf("must specify variables to share (as arguments or via --vars-file)")
 		}
 
-		// Determine source file
-		sourceFile := shareEnvFile
-		if sourceFile == "" {
-			sourceFile = ".env"
+		loadVars := func(filePath string) ([]envfile.EnvVar, error) {
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				return nil, fmt.Errorf("reading %s: %w", filePath, err)
+			}
+
+			hdr, err := crypto.Verify(data)
+			if err != nil {
+				return nil, fmt.Errorf("verifying %s: %w", filePath, err)
+			}
+
+			recipientKeys := hdr.ProviderParams["recipients"].([]map[string]any)
+			if !slices.ContainsFunc(recipientKeys, func(key map[string]any) bool {
+				return key["recipient"] == shareWith
+			}) {
+				return nil, fmt.Errorf("the file %s is not encrypted for the recipient %s", filePath, shortenPublicKey(shareWith))
+			}
+
+			// Detect if it's a vault file
+			if isVaultFile(filePath, data) {
+				password, err := getVaultCredentials(data, filePath)
+				if err != nil {
+					return nil, err
+				}
+				defer crypto.SecureWipe(password)
+
+				// Try to decrypt
+				var p crypto.Provider
+				if algorithm != "" {
+					var err error
+					p, err = crypto.GetProvider(algorithm)
+					if err != nil {
+						return nil, fmt.Errorf("unknown algorithm %q: %w", algorithm, err)
+					}
+				}
+				lockedPlaintext, err := crypto.DecryptSecure(data, password, p)
+				if err != nil {
+					return nil, fmt.Errorf("decrypting failed for %s: %w", filePath, err)
+				}
+				defer lockedPlaintext.Unlock()
+
+				return envfile.Parse(string(lockedPlaintext.Bytes()))
+			}
+
+			return envfile.Parse(string(data))
 		}
 
-		// Read and parse the source file
-		data, err := os.ReadFile(sourceFile)
+		envVars, err := loadVars(filePath)
 		if err != nil {
-			return fmt.Errorf("reading %s: %w", sourceFile, err)
-		}
-
-		envVars, err := envfile.Parse(string(data))
-		if err != nil {
-			return fmt.Errorf("parsing %s: %w", sourceFile, err)
+			return fmt.Errorf("parsing %s: %w", filePath, err)
 		}
 
 		// Filter variables
@@ -73,7 +112,7 @@ The recipient can decrypt it with: envvault receive <base64_string>`,
 
 		if len(selectedVars) == 0 {
 			fmt.Fprintf(os.Stderr, "⚠️  No variables matched the given filters\n")
-			fmt.Fprintf(os.Stderr, "Searched in: %s\n", sourceFile)
+			fmt.Fprintf(os.Stderr, "Searched in: %s\n", filePath)
 			fmt.Fprintf(os.Stderr, "Filters: %v\n", filters)
 			return nil
 		}
