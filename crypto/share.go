@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/SepehrRajabi/envvault/envfile"
 )
@@ -19,10 +20,12 @@ type SharedPayload struct {
 	Data string `json:"data"`
 	// Algorithm used for encryption
 	Algorithm string `json:"algorithm"`
+	// Optional expiration timestamp (Unix time) for the shared data
+	ExpiresAt int64 `json:"expires_at,omitempty"`
 }
 
 // EncodeShare encrypts variables and returns an evlt:// encoded string
-func EncodeShare(variables map[string]string, recipientPublicKey string) (string, error) {
+func EncodeShare(variables map[string]string, recipientPublicKey string, ttl uint) (string, error) {
 	if len(variables) == 0 {
 		return "", fmt.Errorf("no variables to share")
 	}
@@ -46,6 +49,10 @@ func EncodeShare(variables map[string]string, recipientPublicKey string) (string
 	payload := SharedPayload{
 		Data:      base64.StdEncoding.EncodeToString(encrypted),
 		Algorithm: "age-pubkey",
+	}
+
+	if ttl > 0 {
+		payload.ExpiresAt = time.Now().Add(time.Duration(ttl) * time.Second).Unix()
 	}
 
 	// Marshal payload to JSON
