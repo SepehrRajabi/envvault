@@ -18,6 +18,10 @@ var shamirCmd = &cobra.Command{
 	Use:   "shamir",
 	Short: "Work with Shamir secret shares",
 	Long:  "Utilities for splitting and combining secrets with Shamir Secret Sharing.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.Help()
+		return nil
+	},
 }
 
 var shamirSplitCmd = &cobra.Command{
