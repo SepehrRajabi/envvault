@@ -679,6 +679,7 @@ envvault share [env-file | vault-file] [VAR1] [VAR2] ... --with <recipient-pubke
 
 - `--with <pubkey>`: Recipient's Age public key (required)
 - `--vars-file <path>`: Read variable names from a file (one per line)
+- `--ttl`: Expire the shared payload after N seconds
 
 **Details:**
 
