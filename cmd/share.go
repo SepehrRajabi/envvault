@@ -14,7 +14,6 @@ import (
 var (
 	shareWith     string
 	shareVarsFile string
-	shareEnvFile  string
 )
 
 var shareCmd = &cobra.Command{
@@ -162,7 +161,6 @@ func shortenPublicKey(key string) string {
 func init() {
 	shareCmd.Flags().StringVar(&shareWith, "with", "", "Recipient's Age public key (required)")
 	shareCmd.Flags().StringVar(&shareVarsFile, "vars-file", "", "File containing variable names (one per line)")
-	shareCmd.Flags().StringVar(&shareEnvFile, "env-file", ".env", "Source .env file to read variables from")
 	shareCmd.MarkFlagRequired("with")
 
 	rootCmd.AddCommand(shareCmd)
