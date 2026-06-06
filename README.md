@@ -478,17 +478,34 @@ envvault run .env.prod.vault -- docker-compose up
 
 Check an `.env` file or vault against a schema.
 
+The schema supports:
+
+- `required` to enforce mandatory keys
+- type tokens: `string` / `str`, `number`, `integer` / `int`, `unsigned` / `uint`, `float`, `boolean` / `bool`
+- string length constraints with `len<N>`, `len<N-M>`
+- numeric ranges with `min-max`
+
 **Usage:**
 
 ```bash
 envvault check [schemafile] [envfile / vaultfile]
 ```
 
+**Schema example:**
+
+```text
+DATABASE_URL = required, str, len2-20
+PORT = required, uint, 20-65550
+```
+
 **Examples:**
 
 ```bash
-# Check vault against schema
+# Check a vault against schema
 envvault check prod.env.schema .env.vault
+
+# Check a plain .env file against schema
+envvault check .envschema .env
 ```
 
 ---
