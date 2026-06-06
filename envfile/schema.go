@@ -90,7 +90,6 @@ func (s *Schema) Validate(envVars []EnvVar) []string {
 				switch c {
 				case "string", "str", "number", "integer", "int", "unsigned", "uint", "float", "boolean", "bool":
 					typeToken = c
-					fmt.Println("Type token:", typeToken)
 				default:
 					extraTokens = append(extraTokens, c)
 				}
@@ -99,7 +98,6 @@ func (s *Schema) Validate(envVars []EnvVar) []string {
 			validType := false
 			switch typeToken {
 			case "string", "str":
-				fmt.Println("Checking str")
 				validType = validateString(value, extraTokens)
 			case "number":
 				validType = validateNumber(value, extraTokens)
