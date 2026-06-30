@@ -226,6 +226,98 @@ eval $(envvault export .env.vault)
 
 ---
 
+### get
+
+Read a single environment variable from a plain `.env` file or encrypted vault.
+
+**Usage:**
+
+```bash
+envvault get [envfile / vaultfile] [key]
+```
+
+**Examples:**
+
+```bash
+envvault get .env API_KEY
+envvault get .env.vault DATABASE_URL
+```
+
+---
+
+### set
+
+Set or add an environment variable in a plain `.env` file or encrypted vault.
+
+**Usage:**
+
+```bash
+envvault set [envfile / vaultfile] [key] [value]
+```
+
+**Flags:**
+
+- `-r, --recipient <pubkey>`: Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients)
+
+**Examples:**
+
+```bash
+envvault set .env API_KEY sk_test_...
+envvault set .env.vault DEBUG true
+
+# Re-encrypt an Age public-key vault after setting a value
+envvault set .env.vault API_KEY sk_test_... -r age1abc...
+```
+
+---
+
+### unset / remove
+
+Remove an environment variable from a plain `.env` file or encrypted vault. `remove` is an alias for `unset`.
+
+**Usage:**
+
+```bash
+envvault unset [envfile / vaultfile] [key]
+envvault remove [envfile / vaultfile] [key]
+```
+
+**Flags:**
+
+- `-r, --recipient <pubkey>`: Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients)
+
+**Examples:**
+
+```bash
+envvault unset .env OLD_SECRET
+envvault remove .env.vault DEBUG
+```
+
+---
+
+### rename
+
+Rename an environment variable key in a plain `.env` file or encrypted vault.
+
+**Usage:**
+
+```bash
+envvault rename [envfile / vaultfile] [old-key] [new-key]
+```
+
+**Flags:**
+
+- `-r, --recipient <pubkey>`: Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients)
+
+**Examples:**
+
+```bash
+envvault rename .env OLD_API_KEY API_KEY
+envvault rename .env.vault DB_URL DATABASE_URL
+```
+
+---
+
 ### inspect
 
 Show metadata for a vault file without decrypting it.
