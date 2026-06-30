@@ -484,28 +484,126 @@ The schema supports:
 - type tokens: `string` / `str`, `number`, `integer` / `int`, `unsigned` / `uint`, `float`, `boolean` / `bool`
 - string length constraints with `len<N>`, `len<N-M>`
 - numeric ranges with `min-max`
+- enum constraints with `enum(value1,value2,...)`
+- regex constraints with `regex(pattern)`
 
 **Usage:**
 
 ```bash
 envvault check [schemafile] [envfile / vaultfile]
+# or
+envvault schema check [schemafile] [envfile / vaultfile]
 ```
+
+**Flags:**
+
+- `--strict`: Fail if the env file contains keys not defined in the schema
 
 **Schema example:**
 
 ```text
-DATABASE_URL = required, str, len2-20
+DATABASE_URL = required, str, len2-200, regex(^postgres://)
 PORT = required, uint, 20-65550
+NODE_ENV = required, str, enum(development,staging,production)
 ```
 
 **Examples:**
 
 ```bash
 # Check a vault against schema
-envvault check prod.env.schema .env.vault
+envvault check prod.envschema .env.vault
 
 # Check a plain .env file against schema
 envvault check .envschema .env
+
+# Fail if .env contains keys not listed in .envschema
+envvault check .envschema .env --strict
+
+# Same validation via the schema command group
+envvault schema check .envschema .env --strict
+```
+
+---
+
+### schema check
+
+Check an `.env` file or vault against a schema. This is equivalent to the top-level `check` command and exists for users who prefer all schema-related operations under `envvault schema`.
+
+**Usage:**
+
+```bash
+envvault schema check [schemafile] [envfile / vaultfile]
+```
+
+**Flags:**
+
+- `--strict`: Fail if the env file contains keys not defined in the schema
+
+---
+
+### schema init
+
+Create a starter `.envschema` file. If an env file or vault is provided, infer the schema from that file instead of writing the default template.
+
+**Usage:**
+
+```bash
+envvault schema init [envfile / vaultfile]
+```
+
+**Flags:**
+
+- `-o, --output <path>`: Schema file to write (default: `.envschema`)
+- `-f, --force`: Overwrite an existing schema file
+- `--optional`: When an input file is provided, generate optional rules instead of marking every key as required
+- `--algorithm <name>`: Override detected algorithm for vault input
+
+**Examples:**
+
+```bash
+# Create .envschema with example rules
+envvault schema init
+
+# Write to a custom schema path
+envvault schema init -o prod.envschema
+
+# Infer .envschema from a plain env file
+envvault schema init .env
+
+# Infer a schema from an encrypted vault
+envvault schema init .env.vault -o prod.envschema
+```
+
+---
+
+### schema generate
+
+Generate a `.envschema` file from an existing plain `.env` file or encrypted vault.
+
+**Usage:**
+
+```bash
+envvault schema generate [envfile / vaultfile]
+```
+
+**Flags:**
+
+- `-o, --output <path>`: Schema file to write (default: `.envschema`)
+- `-f, --force`: Overwrite an existing schema file
+- `--optional`: Generate optional rules instead of marking every key as required
+- `--algorithm <name>`: Override detected algorithm for vault input
+
+**Examples:**
+
+```bash
+# Generate required rules from .env
+envvault schema generate .env
+
+# Generate from an encrypted vault
+envvault schema generate .env.vault -o prod.envschema
+
+# Generate optional rules
+envvault schema generate .env --optional
 ```
 
 ---
