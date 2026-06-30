@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -18,8 +19,16 @@ type Schema struct {
 	Rules []Rule
 }
 
+type ValidateOptions struct {
+	Strict bool
+}
+
+func IsSchemaPath(filePath string) bool {
+	return strings.HasSuffix(filePath, ".envschema") || strings.HasSuffix(filePath, ".env.schema")
+}
+
 func ParseSchema(filePath string) (*Schema, error) {
-	if !strings.HasSuffix(filePath, ".envschema") {
+	if !IsSchemaPath(filePath) {
 		return nil, fmt.Errorf("invalid schema file: %s", filePath)
 	}
 
@@ -31,28 +40,30 @@ func ParseSchema(filePath string) (*Schema, error) {
 
 	var rules []Rule
 	scanner := bufio.NewScanner(file)
+	lineNumber := 0
 
 	for scanner.Scan() {
+		lineNumber++
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 		before, after, found := strings.Cut(line, "=")
 		if !found {
-			return nil, fmt.Errorf("invalid schema line: %s", line)
+			return nil, fmt.Errorf("invalid schema line %d: %s", lineNumber, line)
 		}
 		key := strings.TrimSpace(before)
-		after = strings.ToLower(strings.TrimSpace(after))
-		rule := Rule{Key: key, Required: false, Constrains: []string{}}
+		if key == "" {
+			return nil, fmt.Errorf("invalid schema line %d: key cannot be empty", lineNumber)
+		}
 
-		for _, token := range strings.FieldsFunc(after, func(r rune) bool {
-			return r == ',' || r == ':'
-		}) {
+		rule := Rule{Key: key, Required: false, Constrains: []string{}}
+		for _, token := range splitSchemaTokens(after) {
 			token = strings.TrimSpace(token)
 			if token == "" {
 				continue
 			}
-			if token == "required" {
+			if strings.EqualFold(token, "required") {
 				rule.Required = true
 				continue
 			}
@@ -65,12 +76,57 @@ func ParseSchema(filePath string) (*Schema, error) {
 	return &Schema{Rules: rules}, scanner.Err()
 }
 
+func splitSchemaTokens(value string) []string {
+	var tokens []string
+	var current strings.Builder
+	depth := 0
+
+	for _, r := range value {
+		switch r {
+		case '(':
+			depth++
+			current.WriteRune(r)
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			current.WriteRune(r)
+		case ',', ':':
+			if depth == 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+				continue
+			}
+			current.WriteRune(r)
+		default:
+			current.WriteRune(r)
+		}
+	}
+
+	tokens = append(tokens, current.String())
+	return tokens
+}
+
 func (s *Schema) Validate(envVars []EnvVar) []string {
+	return s.ValidateWithOptions(envVars, ValidateOptions{})
+}
+
+func (s *Schema) ValidateWithOptions(envVars []EnvVar, opts ValidateOptions) []string {
 	var errors []string
 	envMap := make(map[string]string)
+	ruleMap := make(map[string]Rule)
+
+	for _, rule := range s.Rules {
+		ruleMap[rule.Key] = rule
+	}
 
 	for _, envVar := range envVars {
 		envMap[envVar.Key] = envVar.Value
+		if opts.Strict {
+			if _, ok := ruleMap[envVar.Key]; !ok {
+				errors = append(errors, "Unknown key not allowed by schema: "+envVar.Key)
+			}
+		}
 	}
 
 	for _, rule := range s.Rules {
@@ -79,45 +135,128 @@ func (s *Schema) Validate(envVars []EnvVar) []string {
 			errors = append(errors, "Missing required key: "+rule.Key)
 			continue
 		}
-		if exists && len(rule.Constrains) > 0 {
-			typeToken := ""
-			var extraTokens []string
-			for _, c := range rule.Constrains {
-				c = strings.ToLower(strings.TrimSpace(c))
-				if c == "" {
-					continue
-				}
-				switch c {
-				case "string", "str", "number", "integer", "int", "unsigned", "uint", "float", "boolean", "bool":
-					typeToken = c
-				default:
-					extraTokens = append(extraTokens, c)
-				}
-			}
+		if !exists {
+			continue
+		}
 
-			validType := false
-			switch typeToken {
-			case "string", "str":
-				validType = validateString(value, extraTokens)
-			case "number":
-				validType = validateNumber(value, extraTokens)
-			case "integer", "int":
-				validType = validateInteger(value, extraTokens)
-			case "unsigned", "uint":
-				validType = validateUnsigned(value, extraTokens)
-			case "float":
-				validType = validateFloat(value, extraTokens)
-			case "boolean", "bool":
-				validType = validateBoolean(value)
-			}
-
-			if !validType {
-				errors = append(errors, "Validation failed for key: "+rule.Key)
-			}
+		for _, err := range validateRule(rule, unqoute(strings.TrimSpace(value))) {
+			errors = append(errors, err)
 		}
 	}
 
 	return errors
+}
+
+func validateRule(rule Rule, value string) []string {
+	var errors []string
+	var stringConstraints []string
+	var numericConstraints []string
+	var enumValues []string
+	var regexPatterns []string
+	typeToken := ""
+
+	for _, constraint := range rule.Constrains {
+		constraint = strings.TrimSpace(constraint)
+		if constraint == "" {
+			continue
+		}
+
+		lower := strings.ToLower(constraint)
+		switch lower {
+		case "string", "str", "number", "integer", "int", "unsigned", "uint", "float", "boolean", "bool":
+			typeToken = lower
+			continue
+		}
+
+		if strings.HasPrefix(lower, "len") {
+			stringConstraints = append(stringConstraints, lower)
+			continue
+		}
+		if values, ok := parseFunctionConstraint(constraint, "enum"); ok {
+			enumValues = append(enumValues, splitEnumValues(values)...)
+			continue
+		}
+		if pattern, ok := parseFunctionConstraint(constraint, "regex"); ok {
+			regexPatterns = append(regexPatterns, pattern)
+			continue
+		}
+		if isBoundsConstraint(constraint) {
+			numericConstraints = append(numericConstraints, constraint)
+			continue
+		}
+
+		errors = append(errors, fmt.Sprintf("Unsupported constraint for key %s: %s", rule.Key, constraint))
+	}
+
+	if typeToken != "" && !validateType(typeToken, value, stringConstraints, numericConstraints) {
+		errors = append(errors, fmt.Sprintf("Validation failed for key %s: expected %s", rule.Key, typeToken))
+	}
+
+	if len(enumValues) > 0 && !validateEnum(value, enumValues) {
+		errors = append(errors, fmt.Sprintf("Validation failed for key %s: value must be one of %s", rule.Key, strings.Join(enumValues, ", ")))
+	}
+
+	for _, pattern := range regexPatterns {
+		matched, err := regexp.MatchString(pattern, value)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Invalid regex for key %s: %s", rule.Key, err))
+			continue
+		}
+		if !matched {
+			errors = append(errors, fmt.Sprintf("Validation failed for key %s: value does not match regex(%s)", rule.Key, pattern))
+		}
+	}
+
+	return errors
+}
+
+func parseFunctionConstraint(token, name string) (string, bool) {
+	prefix := strings.ToLower(name) + "("
+	lower := strings.ToLower(token)
+	if !strings.HasPrefix(lower, prefix) || !strings.HasSuffix(token, ")") {
+		return "", false
+	}
+	return strings.TrimSpace(token[len(prefix) : len(token)-1]), true
+}
+
+func splitEnumValues(value string) []string {
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = unqoute(strings.TrimSpace(part))
+		if part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
+}
+
+func validateEnum(value string, allowed []string) bool {
+	for _, candidate := range allowed {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+func validateType(typeToken, value string, stringConstraints, numericConstraints []string) bool {
+	switch typeToken {
+	case "string", "str":
+		return validateString(value, stringConstraints)
+	case "number":
+		return validateNumber(value, numericConstraints)
+	case "integer", "int":
+		return validateInteger(value, numericConstraints)
+	case "unsigned", "uint":
+		return validateUnsigned(value, numericConstraints)
+	case "float":
+		return validateFloat(value, numericConstraints)
+	case "boolean", "bool":
+		return validateBoolean(value)
+	default:
+		return true
+	}
 }
 
 func validateString(value string, constraints []string) bool {
@@ -140,14 +279,19 @@ func validateString(value string, constraints []string) bool {
 				if errMin != nil || errMax != nil {
 					return false
 				}
-				return length >= min && length <= max
+				if length < min || length > max {
+					return false
+				}
+				continue
 			}
 
 			min, errMin := strconv.Atoi(parts[0])
 			if errMin != nil {
 				return false
 			}
-			return length >= min
+			if length < min {
+				return false
+			}
 		}
 	}
 
@@ -222,32 +366,91 @@ func checkBounds[T Number](value T, boundsPattern []string) bool {
 		return true
 	}
 
-	if len(boundsPattern) == 2 {
-		min, errMin := strconv.ParseFloat(strings.TrimSpace(boundsPattern[0]), 64)
-		max, errMax := strconv.ParseFloat(strings.TrimSpace(boundsPattern[1]), 64)
-		if errMin == nil && errMax == nil {
-			return float64(value) >= min && float64(value) <= max
-		}
-		return false
-	}
-
-	if len(boundsPattern) == 1 {
-		pattern := strings.TrimSpace(boundsPattern[0])
+	for _, pattern := range boundsPattern {
+		pattern = strings.TrimSpace(pattern)
 		if strings.Contains(pattern, "-") {
 			parts := strings.SplitN(pattern, "-", 2)
 			min, errMin := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 			max, errMax := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			if errMin == nil && errMax == nil {
-				return float64(value) >= min && float64(value) <= max
+			if errMin != nil || errMax != nil {
+				return false
 			}
-			return false
+			if float64(value) < min || float64(value) > max {
+				return false
+			}
+			continue
 		}
 
 		min, errMin := strconv.ParseFloat(pattern, 64)
-		if errMin == nil {
-			return float64(value) >= min
+		if errMin != nil {
+			return false
+		}
+		if float64(value) < min {
+			return false
 		}
 	}
 
-	return false
+	return true
+}
+
+func isBoundsConstraint(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	if strings.Contains(value, "-") {
+		parts := strings.SplitN(value, "-", 2)
+		if len(parts) != 2 {
+			return false
+		}
+		_, errMin := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+		_, errMax := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+		return errMin == nil && errMax == nil
+	}
+	_, err := strconv.ParseFloat(value, 64)
+	return err == nil
+}
+
+func GenerateSchema(envVars []EnvVar, required bool) string {
+	var b strings.Builder
+	seen := make(map[string]bool)
+
+	b.WriteString("# envvault schema\n")
+	b.WriteString("# Supported tokens: required, str, number, int, uint, float, bool, len<N>, len<N-M>, min-max, enum(a,b), regex(pattern)\n\n")
+
+	for _, envVar := range envVars {
+		if seen[envVar.Key] {
+			continue
+		}
+		seen[envVar.Key] = true
+
+		constraints := []string{}
+		if required {
+			constraints = append(constraints, "required")
+		}
+		constraints = append(constraints, InferSchemaType(envVar.Value))
+		fmt.Fprintf(&b, "%s = %s\n", envVar.Key, strings.Join(constraints, ", "))
+	}
+
+	return b.String()
+}
+
+func InferSchemaType(value string) string {
+	value = unqoute(strings.TrimSpace(value))
+	if value == "" {
+		return "str"
+	}
+	if validateBoolean(value) {
+		return "bool"
+	}
+	if _, err := strconv.ParseUint(value, 10, 64); err == nil {
+		return "uint"
+	}
+	if _, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return "int"
+	}
+	if _, err := strconv.ParseFloat(value, 64); err == nil {
+		return "float"
+	}
+	return "str"
 }
