@@ -510,6 +510,48 @@ docker run --env-file <(envvault docker .env.vault) myimage
 
 ---
 
+### compose
+
+Generate a Docker Compose service YAML snippet from a plain `.env` file or encrypted vault.
+
+**Usage:**
+
+```bash
+envvault compose [envfile / vaultfile]
+```
+
+**Flags:**
+
+- `-s, --service <name>`: Docker Compose service name (default: `app`)
+- `-i, --image <image>`: Optional image to include in the generated service
+- `-o, --output <path>`: Save YAML to a file instead of stdout
+
+**Examples:**
+
+```bash
+# Generate a service snippet with environment variables
+envvault compose .env.vault --service api --image myapp:latest
+
+# Write a compose override file
+envvault compose .env.vault -s api -o docker-compose.envvault.yml
+
+# Use a plain env file as input
+envvault compose .env.local -s worker
+```
+
+**Output example:**
+
+```yaml
+services:
+  api:
+    image: "myapp:latest"
+    environment:
+      DATABASE_URL: "postgres://user:pass@localhost/db"
+      DEBUG: "true"
+```
+
+---
+
 ### k8s
 
 Generate a Kubernetes Secret YAML from a vault.
