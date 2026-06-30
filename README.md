@@ -187,7 +187,7 @@ envvault rotate .env.vault
 
 ### diff
 
-Compare two `.env` or `.env.vault` files by key.
+Compare two `.env` or `.env.vault` files by key. Values are redacted by default to avoid leaking secrets in terminal output or CI logs.
 
 **Usage:**
 
@@ -195,14 +195,33 @@ Compare two `.env` or `.env.vault` files by key.
 envvault diff [file1] [file2]
 ```
 
+**Flags:**
+
+- `--keys-only`: Show only added, removed, and changed key names
+- `--values`: Show plaintext values in the diff output
+- `--redacted`: Redact values in the diff output (default: `true`; use `--redacted=false` or `--values` to reveal values)
+- `--json`: Output a machine-readable JSON diff
+
 **Examples:**
 
 ```bash
-# Compare two vault files
+# Compare two vault files with values redacted
 envvault diff .env.vault .env.prod.vault
 
 # Compare vault and plain text file
 envvault diff .env.vault .env.local
+
+# Show only changed key names
+envvault diff .env.vault .env.prod.vault --keys-only
+
+# Include plaintext values intentionally
+envvault diff .env.vault .env.prod.vault --values
+
+# Output JSON for automation, redacted by default
+envvault diff .env.vault .env.prod.vault --json
+
+# Output JSON including plaintext values
+envvault diff .env.vault .env.prod.vault --json --values
 ```
 
 ---
