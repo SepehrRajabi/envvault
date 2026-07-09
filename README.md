@@ -488,6 +488,7 @@ envvault algorithms [--secure]
 
 - `-v, --verbose`: Show detailed algorithm information including descriptions
 - `-s, --secure`: Show only secure algorithms
+- `--json`: Output algorithms as JSON
 
 **Examples:**
 
@@ -500,6 +501,9 @@ envvault algorithms --secure
 
 # Show detailed information for each algorithm
 envvault algorithms --verbose
+
+# Output algorithms as JSON
+envvault algorithms --json
 ``` 
 
 ---
