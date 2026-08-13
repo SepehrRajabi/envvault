@@ -196,7 +196,7 @@ func formatDiffValue(value string, opts diffFormatOptions) string {
 func init() {
 	diffCmd.Flags().BoolVar(&diffKeysOnly, "keys-only", false, "show only changed key names")
 	diffCmd.Flags().BoolVar(&diffValues, "values", false, "show plaintext values in diff output")
-	diffCmd.Flags().BoolVar(&diffRedacted, "redacted", true, "redact values in diff output")
+	diffCmd.Flags().BoolVar(&diffRedacted, "redacted", false, "redact values in diff output")
 	diffCmd.Flags().BoolVar(&diffJSON, "json", false, "output diff as JSON")
 
 	rootCmd.AddCommand(diffCmd)
