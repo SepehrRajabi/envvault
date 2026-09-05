@@ -232,12 +232,7 @@ func splitEnumValues(value string) []string {
 }
 
 func validateEnum(value string, allowed []string) bool {
-	for _, candidate := range allowed {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, value)
 }
 
 func validateType(typeToken, value string, stringConstraints, numericConstraints []string) bool {
