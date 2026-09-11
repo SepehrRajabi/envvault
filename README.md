@@ -347,11 +347,18 @@ Show metadata for a vault file without decrypting it.
 envvault inspect [vault-file]
 ```
 
+**Flags:**
+
+- `-j, --json`: Output vault metadata as JSON
+
 **Examples:**
 
 ```bash
 # Inspect a vault file
 envvault inspect .env.vault
+
+# Output metadata as JSON
+envvault inspect .env.vault --json
 ```
 
 ---
