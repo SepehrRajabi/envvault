@@ -1,12 +1,26 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/spf13/cobra"
 )
+
+var jsonMetadata bool
+
+type jsonMetadataOutput struct {
+	File           string                    `json:"file"`
+	Version        int                       `json:"version"`
+	Algorithm      algorithmJSONEntry        `json:"algorithm"`
+	Secure         string                    `json:"secure"`
+	Authentication string                    `json:"auth_method"`
+	Recipients     []string                  `json:"recipients,omitempty"`
+	Checksum       string                    `json:"checksum"`
+	Git            *crypto.GitCommitMetadata `json:"git,omitempty"`
+}
 
 var inspectCmd = &cobra.Command{
 	Use:   "inspect [vault-file]",
@@ -23,17 +37,33 @@ var inspectCmd = &cobra.Command{
 
 		hdr, err := crypto.Verify(data)
 		if err != nil {
+			if jsonMetadata {
+				return fmt.Errorf("invalid vault: %w", err)
+			}
 			fmt.Printf("❌ Invalid vault: %v\n", err)
 			return fmt.Errorf("inspection failed")
 		}
 
-		provider, err := crypto.GetProvider(hdr.Algorithm)
+		provider, providerErr := crypto.GetProvider(hdr.Algorithm)
 		secure := "unknown"
-		if err == nil {
-			if provider.Description().Secure {
+		algorithm := algorithmJSONEntry{ID: hdr.Algorithm}
+		if providerErr == nil {
+			description := provider.Description()
+			if description.Secure {
 				secure = "yes"
 			} else {
 				secure = "no"
+			}
+
+			defaultID := ""
+			if crypto.Default() != nil {
+				defaultID = crypto.Default().AlgorithmID()
+			}
+			algorithm = algorithmJSONEntry{
+				ID:          description.ID,
+				Description: description.Description,
+				Secure:      description.Secure,
+				Default:     description.ID == defaultID,
 			}
 		}
 
@@ -45,6 +75,37 @@ var inspectCmd = &cobra.Command{
 			authMethod = "Shamir shares"
 		}
 
+		recipients := make([]string, 0)
+		if len(hdr.ProviderParams) > 0 {
+			if rawRecipients, ok := hdr.ProviderParams["recipients"].([]any); ok && len(rawRecipients) > 0 {
+				for _, recipient := range rawRecipients {
+					if str, ok := recipient.(string); ok {
+						recipients = append(recipients, str)
+					}
+				}
+			}
+		}
+
+		if jsonMetadata {
+			metadata := jsonMetadataOutput{
+				File:           filePath,
+				Version:        int(hdr.Version),
+				Algorithm:      algorithm,
+				Secure:         secure,
+				Authentication: authMethod,
+				Recipients:     recipients,
+				Checksum:       hdr.Checksum,
+				Git:            hdr.Commit,
+			}
+
+			jsonData, err := json.MarshalIndent(metadata, "", "  ")
+			if err != nil {
+				return fmt.Errorf("encoding inspect json: %w", err)
+			}
+			fmt.Println(string(jsonData))
+			return nil
+		}
+
 		fmt.Printf("🔍 Vault metadata for %s:\n", filePath)
 		fmt.Printf("   Version:         %d\n", hdr.Version)
 		fmt.Printf("   Algorithm:       %s\n", hdr.Algorithm)
@@ -52,17 +113,12 @@ var inspectCmd = &cobra.Command{
 		fmt.Printf("   Authentication:  %s\n", authMethod)
 		fmt.Printf("   Checksum:        %s...\n", hdr.Checksum[:16])
 
-		if len(hdr.ProviderParams) > 0 {
-			if recipients, ok := hdr.ProviderParams["recipients"].([]any); ok && len(recipients) > 0 {
-				fmt.Printf("   Recipients:\n")
-				for _, recipient := range recipients {
-					if str, ok := recipient.(string); ok {
-						fmt.Printf("     - %s\n", str)
-					}
-				}
-			} else {
-				fmt.Printf("   Provider params: %d\n", len(hdr.ProviderParams))
-			}
+		for _, recipient := range recipients {
+			fmt.Printf("   Recipient:       %s\n", recipient)
+		}
+
+		if len(hdr.ProviderParams) > 0 && len(recipients) == 0 {
+			fmt.Printf("   Provider params: %d\n", len(hdr.ProviderParams))
 		}
 
 		if hdr.Commit != nil {
@@ -78,5 +134,7 @@ var inspectCmd = &cobra.Command{
 }
 
 func init() {
+	inspectCmd.Flags().BoolVarP(&jsonMetadata, "json", "j", false, "output metadata as JSON")
+
 	rootCmd.AddCommand(inspectCmd)
 }
