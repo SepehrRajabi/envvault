@@ -36,6 +36,10 @@ var runCmd = &cobra.Command{
 
 			// Detect if it's a vault file
 			if isVaultFile(filePath, data) {
+				if err := enforceTrust(filePath, data); err != nil {
+					return nil, err
+				}
+
 				// Read password into locked memory to prevent swapping
 				lockedPassword, err := crypto.GetPasswordLocked("Enter password for " + filePath + ": ")
 				if err != nil {

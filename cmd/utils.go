@@ -103,6 +103,32 @@ func isValidBase64(value string) bool {
 	return err == nil
 }
 
+// enforceTrust verifies that a vault's actual algorithm/recipients match
+// whatever was pinned for its path (via `envvault lock` or `envvault trust`).
+// It must be called before any credential prompt or decryption attempt:
+// otherwise an attacker who overwrites a vault file with content encrypted
+// under a different algorithm or recipient set (but still decryptable by the
+// victim's own key) would be silently accepted. A vault with no pin yet is
+// allowed through with a warning, so first-time use isn't broken.
+func enforceTrust(filePath string, data []byte) error {
+	hdr, err := crypto.Verify(data)
+	if err != nil {
+		return fmt.Errorf("verifying %s: %w", filePath, err)
+	}
+
+	if err := crypto.CheckTrust(filePath, hdr); err != nil {
+		if err == crypto.ErrUntrustedVault {
+			fmt.Fprintf(os.Stderr,
+				"⚠️  No trust record for %s — run `envvault trust %s` after verifying its contents to pin it and detect future substitution.\n",
+				filePath, filePath)
+			return nil
+		}
+		return err
+	}
+
+	return nil
+}
+
 // getVaultCredentials determines if a vault requires a password or a private key
 // and returns the appropriate credential (or empty byte slice for pubkey vaults).
 // It first checks the OS keyring for a stored key for this file before prompting the user.

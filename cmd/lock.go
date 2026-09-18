@@ -20,6 +20,7 @@ var (
 	shamirShares    int
 	shamirThreshold int
 	shamirSharesDir string
+	noTrust         bool
 )
 
 var lockCmd = &cobra.Command{
@@ -126,6 +127,16 @@ var lockCmd = &cobra.Command{
 			algID = def.AlgorithmID()
 		}
 
+		if !noTrust {
+			trustRecord := crypto.TrustRecord{Algorithm: algID}
+			if algID == "age-pubkey" {
+				trustRecord.Recipients = append(trustRecord.Recipients, recipient...)
+			}
+			if err := crypto.SetTrust(outPath, trustRecord); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Warning: failed to pin trust record for %s: %v\n", outPath, err)
+			}
+		}
+
 		fmt.Printf("🔒 Encrypted %s → %s (%s)\n", filePath, outPath, algID)
 		if shareProvider, ok := p.(crypto.ShareExporter); ok {
 			shares := shareProvider.GeneratedShares()
@@ -158,6 +169,7 @@ func init() {
 	lockCmd.Flags().IntVar(&shamirShares, "shares", 5, "Number of Shamir shares to generate (shamir-aes256gcm)")
 	lockCmd.Flags().IntVar(&shamirThreshold, "threshold", 3, "Minimum shares required to decrypt (shamir-aes256gcm)")
 	lockCmd.Flags().StringVar(&shamirSharesDir, "shares-dir", "", "Directory to write each generated Shamir share into its own file")
+	lockCmd.Flags().BoolVar(&noTrust, "no-trust", false, "Don't pin this vault's algorithm/recipients as trusted (skips substitution detection on unlock/export/run)")
 
 	rootCmd.AddCommand(lockCmd)
 }

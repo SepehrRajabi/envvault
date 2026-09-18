@@ -37,6 +37,10 @@ var unlockCmd = &cobra.Command{
 			return unlockWithShamirQuorum(filePath, data)
 		}
 
+		if err := enforceTrust(filePath, data); err != nil {
+			return err
+		}
+
 		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
 		password, err := getVaultCredentials(data, filePath)
 		if err != nil {
