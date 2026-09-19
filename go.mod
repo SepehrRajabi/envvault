@@ -1,6 +1,6 @@
 module github.com/SepehrRajabi/envvault
 
-go 1.26.1
+go 1.27.1
 
 require (
 	filippo.io/age v1.3.1
