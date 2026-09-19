@@ -1,5 +1,19 @@
 # Security Guide
 
+## Disclosed Vulnerabilities
+
+Write-ups of security issues found in envvault, along with the scenario that
+triggered them and the fix that shipped, live in [`docs/vulns/`](docs/vulns).
+Each file documents one issue end-to-end: how it was found, a reproducible
+PoC, and how it was fixed (with pointers to the relevant source).
+
+- [`vault-substitution-attack.md`](docs/vulns/vault-substitution-attack.md) —
+  a vault file overwritten with content encrypted under the victim's own
+  public key was silently accepted by `unlock`/`export`/`run`, since nothing
+  bound a vault to the specific `lock` operation that produced it. Fixed by
+  pinning the expected algorithm/recipients at lock time and checking every
+  subsequent read against that pin (`crypto/trust.go`, `cmd/trust.go`).
+
 This document consolidates the memory hardening documentation for envvault.
 It covers secure memory locking, usage patterns, command integration, testing, and best practices.
 

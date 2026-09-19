@@ -70,6 +70,10 @@ The recipient can decrypt it with: envvault receive <base64_string>`,
 				return nil, fmt.Errorf("verifying %s: %w", filePath, err)
 			}
 
+			if err := enforceTrust(filePath, data); err != nil {
+				return nil, err
+			}
+
 			recipientKeys := hdr.ProviderParams["recipients"].([]map[string]any)
 			if !slices.ContainsFunc(recipientKeys, func(key map[string]any) bool {
 				return key["recipient"] == shareWith

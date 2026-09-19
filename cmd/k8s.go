@@ -123,7 +123,8 @@ data:
 			return fmt.Errorf("generating yaml: %w", err)
 		}
 
-		_ = history.Record("K8s", filePath, p.AlgorithmID())
+		alg, _ := crypto.PeekAlgorithm(data)
+		_ = history.Record("K8s", filePath, alg)
 		return nil
 	},
 }
