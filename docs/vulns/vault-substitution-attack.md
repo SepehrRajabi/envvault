@@ -1,4 +1,4 @@
-# PoC: Substitution Attack
+# Vault Substitution Attack (fixed)
 
 **envvault** is a CLI tool for encrypting `.env` files in a safe manner.
 It also provides a way to share `.env` files with other parties via asymmetric algorithms.
