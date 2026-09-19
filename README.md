@@ -21,11 +21,12 @@ Encrypted `.env` file manager. Lock, unlock, diff, and share environment variabl
 4. [Integration Commands](#integration-commands)
 5. [Utility Commands](#utility-commands)
 6. [Authentication & Keystore Commands](#authentication--keystore-commands)
-7. [Zero-Trust Sharing Commands](#zero-trust-sharing-commands)
-8. [Common Workflows](#common-workflows)
-9. [Security Considerations](#security-considerations)
-10. [Limitations & Roadmap](#limitations--roadmap)
-11. [Contributing](#contributing)
+7. [Trust & Verification Commands](#trust--verification-commands)
+8. [Zero-Trust Sharing Commands](#zero-trust-sharing-commands)
+9. [Common Workflows](#common-workflows)
+10. [Security Considerations](#security-considerations)
+11. [Limitations & Roadmap](#limitations--roadmap)
+12. [Contributing](#contributing)
 
 ---
 
@@ -68,13 +69,15 @@ envvault lock [file]
 
 **Flags:**
 
-- `--algorithm <name>`: Encryption algorithm (default: aes256gcm-argon2id)
+- `-a, --algorithm <name>`: Encryption algorithm (default: aes256gcm-argon2id)
+- `--list-algorithms`: List available algorithms and exit
 - `-r, --recipient <pubkey>`: Age public key for encryption (use multiple times for multiple recipients)
-- `--shares <number>`: Number of Shamir shares to generate (default: 3)
-- `--threshold <number>`: Minimum shares needed to recover secret (default: 2)
+- `--shares <number>`: Number of Shamir shares to generate (default: 5)
+- `--threshold <number>`: Minimum shares needed to recover secret (default: 3)
 - `--shares-dir <path>`: Directory to save Shamir share files
 - `--allow-weak`: Allow weak passwords (not recommended)
 - `--allow-insecure`: Allow insecure algorithms (only for testing)
+- `--no-trust`: Don't pin this vault's algorithm/recipients as trusted (skips substitution detection on unlock/export/run)
 
 **Examples:**
 
@@ -93,7 +96,7 @@ envvault lock .env --algorithm shamir-aes256gcm --shares 3 --threshold 2 --share
 
 ### unlock
 
-Decrypt a `.env.vault` file back to `.env`.
+Decrypt a `.env.vault` file back to `.env`. `decrypt` is an alias for `unlock`.
 
 **Usage:**
 
@@ -104,7 +107,8 @@ envvault unlock [vault-file]
 **Flags:**
 
 - `-o, --output <path>`: Output file path (default: remove `.vault` suffix)
-- `--algorithm <name>`: Override detected algorithm
+- `--request-access`: Request quorum approval for Shamir decryption and store the submitted share until the threshold is reached
+- `--share <string>`: Shamir share to submit in `--request-access` mode
 
 **Examples:**
 
@@ -117,6 +121,9 @@ envvault unlock .env.vault -o .env.local
 
 # Uses OS keystore if key is stored (no password prompt)
 envvault unlock .env.vault
+
+# Submit a Shamir share toward quorum decryption
+envvault unlock .env.vault --request-access --share <share>
 ```
 
 ---
@@ -134,7 +141,6 @@ envvault edit [vault-file]
 **Flags:**
 
 - `-r, --recipient <pubkey>`: Re-encrypt with Age public keys (optional)
-- `--algorithm <name>`: Override detected algorithm
 
 **Details:**
 
@@ -168,7 +174,6 @@ envvault rotate [vault-file]
 **Flags:**
 
 - `--allow-weak`: Allow weak passwords (not recommended)
-- `--algorithm <name>`: Override detected algorithm
 
 **Details:**
 
@@ -199,7 +204,7 @@ envvault diff [file1] [file2]
 
 - `--keys-only`: Show only added, removed, and changed key names
 - `--values`: Show plaintext values in the diff output
-- `--redacted`: Redact values in the diff output (default: `true`; use `--redacted=false` or `--values` to reveal values)
+- `--redacted`: Redact values in the diff output (default: `false`; the diff is already redacted unless `--values` is set, so this flag rarely needs to be passed)
 - `--json`: Output a machine-readable JSON diff
 
 **Examples:**
@@ -466,7 +471,7 @@ envvault history
 
 **Flags:**
 
-- `-l, --limit <number>`: Show last N entries (default: 50)
+- `-l, --limit <number>`: Show last N entries (default: 10)
 - `--clear`: Clear all history
 
 **Examples:**
@@ -594,8 +599,8 @@ envvault k8s [vault-file]
 
 **Flags:**
 
-- `-n, --name <name>`: Secret name (default: derived from filename)
-- `--namespace <namespace>`: Kubernetes namespace (default: default)
+- `-n, --name <name>`: Secret name (default: `my-app-secret`)
+- `-s, --namespace <namespace>`: Kubernetes namespace (default: default)
 - `-t, --type <type>`: Secret type (default: Opaque)
 - `-o, --output <path>`: Save to file
 
@@ -841,6 +846,69 @@ prod.env.vault            aes256gcm-argon2id   ✅ Yes           2026-04-17 21:2
 
 ---
 
+### migrate
+
+Change the encryption algorithm of an existing vault file.
+
+**Usage:**
+
+```bash
+envvault migrate [vault-file]
+```
+
+**Flags:**
+
+- `--from <name>`: Current encryption algorithm (optional, auto-detected if not provided)
+- `--to <name>`: New encryption algorithm (optional, defaults to the same algorithm)
+- `--output <path>`: Output file for the migrated vault (optional, defaults to overwriting the input file)
+
+**Examples:**
+
+```bash
+# Migrate a vault to a new algorithm in place
+envvault migrate .env.vault --to aes256gcm-argon2id
+
+# Migrate to a new file, leaving the original untouched
+envvault migrate .env.vault --to age-pubkey --output .env.new.vault
+```
+
+---
+
+### config
+
+View, initialize, or reset the envvault configuration file at `~/.config/envvault/config.toml`.
+
+**Usage:**
+
+```bash
+envvault config
+```
+
+**Flags:**
+
+- `--show`: Show configuration (default)
+- `--init`: Initialize config file with defaults
+- `--reset`: Reset config to defaults (deletes the config file)
+- `--path`: Print the config file path
+
+**Examples:**
+
+```bash
+# View current configuration
+envvault config
+
+# Create a config file with defaults
+envvault config --init
+
+# Print the config file path
+envvault config --path
+
+# Reset configuration to defaults
+envvault config --reset
+```
+
+---
+
 ### shamir split
 
 Split a secret into Shamir shares.
@@ -853,8 +921,8 @@ envvault shamir split [secret]
 
 **Flags:**
 
-- `--shares <number>`: Number of shares (default: 3)
-- `--threshold <number>`: Minimum shares needed (default: 2)
+- `--shares <number>`: Number of shares (default: 5)
+- `--threshold <number>`: Minimum shares needed (default: 3)
 - `--out-dir <path>`: Save shares to directory
 
 **Examples:**
@@ -930,14 +998,86 @@ Remove decryption key from OS keystore.
 **Usage:**
 
 ```bash
-envvault logout
+envvault logout [vault-file]
 ```
+
+**Details:**
+
+- If `[vault-file]` is provided, removes the key stored for that specific project.
+- If no file is provided, removes the default key.
 
 **Examples:**
 
 ```bash
-# Remove stored key
+# Remove default stored key
 envvault logout
+
+# Remove a project-specific key
+envvault logout project-a/.env.vault
+```
+
+---
+
+## Trust & Verification Commands
+
+### trust
+
+Pin a vault's expected algorithm/recipients to detect substitution. `envvault lock` pins this automatically; use this command to inspect, clear, or pre-register a pin.
+
+**Usage:**
+
+```bash
+envvault trust [vault-file]
+```
+
+**Flags:**
+
+- `--clear`: Remove the trust pin for this vault path
+- `--show`: Show the trust pin for this vault path
+- `--algorithm <name>`: Pre-register an expected algorithm (e.g. for CI, before the vault exists)
+- `-r, --recipient <pubkey>`: Pre-register an expected recipient public key (repeatable, use with `--algorithm`)
+
+**Details:**
+
+- `unlock`/`export`/`run`/`share` check a vault's actual contents against its pin, so a vault file replaced on disk with content encrypted differently — even content the victim's own key can decrypt — is rejected instead of silently accepted.
+- With no flags, pins whatever the vault currently contains after verifying its structure (an explicit trust decision — use only after confirming the vault's contents by other means).
+
+**Examples:**
+
+```bash
+# Inspect the current pin
+envvault trust .env.vault --show
+
+# Remove a pin
+envvault trust .env.vault --clear
+
+# Pre-register expected values before the vault file exists (e.g. in CI)
+envvault trust .env.vault --algorithm age-pubkey --recipient age1...
+
+# Pin a vault you just verified by other means
+envvault trust .env.vault
+```
+
+---
+
+### verify-commit
+
+Verify embedded git commit signature metadata in a vault.
+
+**Usage:**
+
+```bash
+envvault verify-commit [vault-file]
+```
+
+**Details:**
+
+- Checks that the vault file contains git commit metadata (embedded by `envvault lock` when run inside a git repository) and validates the commit signature against the current repository.
+
+**Examples:**
+
+```bash
+envvault verify-commit .env.vault
 ```
 
 ---
