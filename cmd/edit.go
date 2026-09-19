@@ -142,6 +142,9 @@ var editCmd = &cobra.Command{
 		}
 
 		// 13. Re-encrypt
+		if p == nil {
+			p = crypto.Default()
+		}
 		encrypted, err := crypto.Encrypt(modified, newPassword, p)
 		if err != nil {
 			return fmt.Errorf("re-encrypting: %w", err)

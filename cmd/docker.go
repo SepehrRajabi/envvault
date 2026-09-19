@@ -74,7 +74,8 @@ var dockerCmd = &cobra.Command{
 			fmt.Fprintf(out, "%s=%s\n", v.Key, v.Value)
 		}
 
-		_ = history.Record("Docker", filePath, p.AlgorithmID())
+		alg, _ := crypto.PeekAlgorithm(data)
+		_ = history.Record("Docker", filePath, alg)
 		return nil
 	},
 }
