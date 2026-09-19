@@ -47,4 +47,3 @@ dist/
 *.envschema
 !*.envschema.example
 !.envschema.template
-/builds
