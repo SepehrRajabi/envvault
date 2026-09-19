@@ -2,7 +2,7 @@
 
 Encrypted `.env` file manager. Lock, unlock, diff, and share environment variables securely across your team.
 
-> **⚠️ v0.0.2 Early Beta Release**
+> **⚠️ v0.0.3 Early Beta Release**
 >
 > envvault is in early development. The core functionality works well and has been manually tested extensively, but:
 >
