@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	Version     string            `toml:"version"`
 	Encryption  EncryptionConfig  `toml:"encryption"`
 	Sharing     SharingConfig     `toml:"sharing"`
 	Integration IntegrationConfig `toml:"integration"`

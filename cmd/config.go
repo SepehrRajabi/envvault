@@ -40,7 +40,17 @@ func showConfig() error {
 		return err
 	}
 
+	// Config files written before the version field existed (or the
+	// in-memory defaults, which don't carry one either) have no version
+	// recorded; report the running binary's version for those rather than
+	// showing it blank.
+	displayVersion := cfg.Version
+	if displayVersion == "" {
+		displayVersion = fullVersion()
+	}
+
 	fmt.Println("\n⚙️  envvault Configuration")
+	fmt.Printf("  Version: %s\n", displayVersion)
 	fmt.Println(string([]byte{'-'}[0]) + " Encryption Settings")
 	fmt.Printf("  Default Algorithm:    %s\n", cfg.Encryption.DefaultAlgorithm)
 	fmt.Printf("  Allow Weak Passwords: %v\n", cfg.Encryption.AllowWeakPasswords)
@@ -71,8 +81,9 @@ func showConfig() error {
 }
 
 func initConfig() error {
-	defaultCfg := config.GetDefault()
-	if err := config.Save(defaultCfg); err != nil {
+	cfg := *config.GetDefault()
+	cfg.Version = fullVersion()
+	if err := config.Save(&cfg); err != nil {
 		return err
 	}
 

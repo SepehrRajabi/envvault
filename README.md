@@ -841,6 +841,25 @@ prod.env.vault            aes256gcm-argon2id   ✅ Yes           2026-04-17 21:2
 
 ---
 
+### version
+
+Print the envvault version.
+
+**Usage:**
+
+```bash
+envvault version
+```
+
+**Examples:**
+
+```bash
+envvault version
+# envvault version 0.0.3 beta
+```
+
+---
+
 ### shamir split
 
 Split a secret into Shamir shares.
