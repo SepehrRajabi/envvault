@@ -129,3 +129,7 @@ See `crypto/trust.go`, `cmd/trust.go`, and the `enforceTrust` calls in `cmd/unlo
 
 Not addressed by this fix: a full cryptographic signature over the envelope (e.g. Ed25519) would be a stronger, defense-in-depth follow-up, since the current pin is only as good as the local trust store's integrity and isn't portable across machines the way a signature would be.
 
+## Acknowledgments
+
+Thanks to [Hu13er](https://github.com/Hu13er/) for finding and responsibly reporting this vulnerability.
+
