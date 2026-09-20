@@ -1137,14 +1137,12 @@ for more info, see [SECURITY](SECURITY.md)
 
 ### Current Limitations
 
-- No automated test suite yet (highest priority)
 - Temporary files are used during `edit` (deleted after use, but still a theoretical risk)
 - Shamir shares are written to disk by default
 - Limited real-world battle testing
 
 ### Roadmap
 
-- Comprehensive test coverage
 - Pre-built binaries and Homebrew formula (via GoReleaser)
 - Improved documentation and examples
 - Possible future support for hardware security keys (YubiKey/PIV)
