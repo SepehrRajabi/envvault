@@ -60,8 +60,30 @@ var (
 	}
 )
 
-// GetConfigPath returns the path to the envvault config file
+// pathOverride, when non-empty, forces GetConfigPath to return it instead
+// of resolving ENVVAULT_CONFIG or the default location. Set via SetPathOverride
+// (used by the --config flag).
+var pathOverride string
+
+// SetPathOverride forces GetConfigPath to return path for the remainder of
+// the process, taking precedence over ENVVAULT_CONFIG and the default
+// ~/.config/envvault/config.toml location. Pass an empty string to clear it.
+func SetPathOverride(path string) {
+	pathOverride = path
+}
+
+// GetConfigPath returns the path to the envvault config file. It checks, in
+// order: an explicit override set via SetPathOverride (--config), the
+// ENVVAULT_CONFIG environment variable, and finally the default location
+// ~/.config/envvault/config.toml.
 func GetConfigPath() (string, error) {
+	if pathOverride != "" {
+		return pathOverride, nil
+	}
+	if envPath := os.Getenv("ENVVAULT_CONFIG"); envPath != "" {
+		return envPath, nil
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

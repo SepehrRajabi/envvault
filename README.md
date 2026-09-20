@@ -660,6 +660,40 @@ envvault run .env.prod.vault -- docker-compose up
 
 ## Utility Commands
 
+### config
+
+View, initialize, or reset envvault's configuration.
+
+**Usage:**
+
+```bash
+envvault config
+```
+
+**Flags:**
+
+- `--show`: Show configuration (default)
+- `--init`: Initialize config file with defaults
+- `--reset`: Reset config to defaults
+- `--path`: Print the config file path
+
+**Config file location:**
+
+By default, config is read from and written to `~/.config/envvault/config.toml`. To use a different file, either pass `--config` (a persistent flag available on every command, not just `config`) or set the `ENVVAULT_CONFIG` environment variable. `--config` takes precedence over `ENVVAULT_CONFIG`, which takes precedence over the default location.
+
+```bash
+# Point a single command at a custom config file
+envvault --config ./ci-config.toml lock .env
+
+# Point every envvault invocation in this shell at a custom config file
+export ENVVAULT_CONFIG=/etc/envvault/config.toml
+envvault config --show
+```
+
+This is useful for CI matrices or multi-project setups where different config (e.g. `[history]` backend, default algorithm) needs to apply without touching `~/.config/envvault/config.toml`.
+
+---
+
 ### check
 
 Check an `.env` file or vault against a schema.
