@@ -60,6 +60,8 @@ var statusCmd = &cobra.Command{
 	},
 }
 
+// VaultInfo summarizes a vault file's metadata for display, without
+// decrypting it. See getVaultInfo.
 type VaultInfo struct {
 	Algorithm  string
 	HasKeyring bool

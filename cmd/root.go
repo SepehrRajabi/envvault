@@ -1,3 +1,6 @@
+// Package cmd implements envvault's CLI commands (lock, unlock, edit,
+// rotate, diff, share, history, config, ...) as cobra commands registered
+// on rootCmd. Execute is the sole entry point, called from main.
 package cmd
 
 import (
@@ -24,6 +27,8 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// Execute parses os.Args and runs the matched envvault subcommand, exiting
+// with status 1 on error. It's the only function main is expected to call.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
