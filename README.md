@@ -533,7 +533,7 @@ envvault algorithms --verbose
 
 # Output algorithms as JSON
 envvault algorithms --json
-``` 
+```
 
 ---
 
