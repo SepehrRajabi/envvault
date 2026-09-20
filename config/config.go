@@ -13,6 +13,7 @@ type Config struct {
 	Encryption  EncryptionConfig  `toml:"encryption"`
 	Sharing     SharingConfig     `toml:"sharing"`
 	Integration IntegrationConfig `toml:"integration"`
+	History     HistoryConfig     `toml:"history"`
 }
 
 type EncryptionConfig struct {
@@ -30,6 +31,15 @@ type IntegrationConfig struct {
 	PreCommitEnabled bool `toml:"precommit_enabled"`
 }
 
+// HistoryConfig selects and configures the backend used to record and
+// retrieve the audit log of vault operations. Backend is "local" (default,
+// a JSON file under ~/.envvault) or "http" (forwards events to Endpoint).
+// The auth token for the http backend is kept in the OS keyring, not here.
+type HistoryConfig struct {
+	Backend  string `toml:"backend"`
+	Endpoint string `toml:"endpoint"`
+}
+
 var (
 	defaultConfig = Config{
 		Encryption: EncryptionConfig{
@@ -43,6 +53,9 @@ var (
 		Integration: IntegrationConfig{
 			GitignoreEnabled: true,
 			PreCommitEnabled: false,
+		},
+		History: HistoryConfig{
+			Backend: "local",
 		},
 	}
 )

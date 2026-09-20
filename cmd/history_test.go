@@ -7,11 +7,14 @@ import (
 	"testing"
 
 	"github.com/SepehrRajabi/envvault/history"
+	"github.com/SepehrRajabi/envvault/keyring"
+	kr "github.com/zalando/go-keyring"
 )
 
 func resetHistoryFlags() {
 	historyLimit = 10
 	historyClear = false
+	historySetToken = ""
 }
 
 func TestHistoryCommandListsRecordedEvents(t *testing.T) {
@@ -79,5 +82,30 @@ func TestHistoryCommandClearRemovesFile(t *testing.T) {
 
 	if _, err := os.Stat(historyPath); !os.IsNotExist(err) {
 		t.Fatalf("expected history file to be removed, stat err=%v", err)
+	}
+}
+
+func TestHistoryCommandSetTokenStoresInKeyring(t *testing.T) {
+	kr.MockInit()
+	resetHistoryFlags()
+	t.Cleanup(resetHistoryFlags)
+
+	historySetToken = "s3cr3t-token"
+	out := captureStdout(t, func() {
+		if err := historyCmd.RunE(historyCmd, nil); err != nil {
+			t.Fatalf("history --set-token: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "stored") {
+		t.Fatalf("expected confirmation message, got:\n%s", out)
+	}
+
+	stored, err := keyring.RetrieveExact(historyTokenKeyringKey)
+	if err != nil {
+		t.Fatalf("RetrieveKey: %v", err)
+	}
+	if stored != "s3cr3t-token" {
+		t.Fatalf("expected stored token %q, got %q", "s3cr3t-token", stored)
 	}
 }

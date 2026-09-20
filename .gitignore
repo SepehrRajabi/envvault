@@ -47,4 +47,9 @@ dist/
 *.envschema
 !*.envschema.example
 !.envschema.template
+
+# Binary builds
 /builds
+
+# graphify
+/graphify-out

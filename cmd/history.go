@@ -2,17 +2,18 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/SepehrRajabi/envvault/history"
+	"github.com/SepehrRajabi/envvault/keyring"
 	"github.com/spf13/cobra"
 )
 
 var (
-	historyLimit int
-	historyClear bool
+	historyLimit    int
+	historyClear    bool
+	historySetToken string
 )
 
 var historyCmd = &cobra.Command{
@@ -20,15 +21,19 @@ var historyCmd = &cobra.Command{
 	Short: "View audit log of vault operations",
 	Long:  "Displays a log of lock, unlock, and k8s operations performed on your vaults.",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Handle --set-token flag (stores the auth token for the http backend)
+		if historySetToken != "" {
+			if err := keyring.StoreKey(historySetToken, historyTokenKeyringKey); err != nil {
+				return fmt.Errorf("storing history backend token: %w", err)
+			}
+			fmt.Println("🔑 History backend token stored.")
+			return nil
+		}
+
 		// Handle --clear flag
 		if historyClear {
-			path, err := os.UserHomeDir()
-			if err != nil {
+			if err := history.Clear(); err != nil {
 				return err
-			}
-			path = fmt.Sprintf("%s/.envvault/history.json", path)
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("clearing history: %w", err)
 			}
 			fmt.Println("🗑️  History cleared.")
 			return nil
@@ -105,5 +110,6 @@ var historyCmd = &cobra.Command{
 func init() {
 	historyCmd.Flags().IntVarP(&historyLimit, "limit", "l", 10, "Number of events to show")
 	historyCmd.Flags().BoolVar(&historyClear, "clear", false, "Clear all history")
+	historyCmd.Flags().StringVar(&historySetToken, "set-token", "", "Store the auth token for the configured http history backend")
 	rootCmd.AddCommand(historyCmd)
 }
