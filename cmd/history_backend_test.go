@@ -68,6 +68,44 @@ func TestConfigureHistoryBackendSelectsHTTP(t *testing.T) {
 	}
 }
 
+func TestConfigureHistoryBackendDoesNotLeakDefaultVaultKeyAsToken(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	restoreLocalHistoryBackend(t)
+	kr.MockInit()
+
+	// A user who has run `envvault login` has a default vault decryption
+	// key in the keyring, but never a history token. RetrieveKey's
+	// fallback-to-default semantics (meant for vault keys) must not apply
+	// here, or that decryption key would be sent to the remote server.
+	if err := keyring.StoreKey("super-secret-vault-key", ""); err != nil {
+		t.Fatalf("seed default vault key: %v", err)
+	}
+
+	var gotAuth string
+	var authSet bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, authSet = r.Header.Get("Authorization"), r.Header["Authorization"] != nil
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := *config.GetDefault()
+	cfg.History.Backend = "http"
+	cfg.History.Endpoint = srv.URL
+	if err := config.Save(&cfg); err != nil {
+		t.Fatalf("saving config: %v", err)
+	}
+
+	configureHistoryBackend()
+
+	if err := history.Record("Lock", "a.env.vault", ""); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+	if authSet {
+		t.Fatalf("expected no Authorization header (no history token set), but sent %q", gotAuth)
+	}
+}
+
 func TestConfigureHistoryBackendHTTPWithoutEndpointFallsBackToLocal(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	restoreLocalHistoryBackend(t)

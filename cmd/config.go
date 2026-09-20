@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/SepehrRajabi/envvault/config"
+	"github.com/SepehrRajabi/envvault/keyring"
 	"github.com/spf13/cobra"
 )
 
@@ -78,6 +79,11 @@ func showConfig() error {
 	fmt.Printf("  Backend:              %s\n", backend)
 	if backend == "http" {
 		fmt.Printf("  Endpoint:             %s\n", cfg.History.Endpoint)
+		tokenStatus := "not set (envvault history --set-token)"
+		if keyring.HasExactKey(historyTokenKeyringKey) {
+			tokenStatus = "set"
+		}
+		fmt.Printf("  Auth Token:           %s\n", tokenStatus)
 	}
 
 	path, _ := config.GetConfigPath()

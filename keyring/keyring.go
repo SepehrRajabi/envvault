@@ -63,6 +63,29 @@ func RetrieveKey(filePath string) (string, error) {
 	return "", fmt.Errorf("keychain unavailable (are you on a headless Linux server?): %w", lastErr)
 }
 
+// RetrieveExact retrieves a value stored under an exact keyring key, with no
+// fallback to DefaultKeyringKey. Use this for keyring entries that aren't
+// vault decryption keys (e.g. a remote history backend's auth token) —
+// RetrieveKey's fallback would otherwise silently return the user's default
+// vault key when the specific entry isn't set.
+func RetrieveExact(key string) (string, error) {
+	value, err := kr.Get(ServiceName, key)
+	if err != nil {
+		if err == kr.ErrNotFound {
+			return "", fmt.Errorf("key not found in keychain")
+		}
+		return "", fmt.Errorf("keychain unavailable (are you on a headless Linux server?): %w", err)
+	}
+	return value, nil
+}
+
+// HasExactKey checks whether a value is stored under an exact keyring key,
+// with no fallback to DefaultKeyringKey. See RetrieveExact.
+func HasExactKey(key string) bool {
+	_, err := RetrieveExact(key)
+	return err == nil
+}
+
 // DeleteKey removes the decryption key from the OS keystore.
 // If filePath is empty, deletes the default key. Otherwise, deletes the project-specific key.
 func DeleteKey(filePath string) error {

@@ -101,7 +101,7 @@ func TestHistoryCommandSetTokenStoresInKeyring(t *testing.T) {
 		t.Fatalf("expected confirmation message, got:\n%s", out)
 	}
 
-	stored, err := keyring.RetrieveKey(historyTokenKeyringKey)
+	stored, err := keyring.RetrieveExact(historyTokenKeyringKey)
 	if err != nil {
 		t.Fatalf("RetrieveKey: %v", err)
 	}

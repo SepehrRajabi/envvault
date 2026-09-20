@@ -30,7 +30,7 @@ func configureHistoryBackend() {
 			fmt.Fprintln(os.Stderr, "⚠️  history.backend is \"http\" but history.endpoint is not set; using local history instead.")
 			return
 		}
-		token, _ := keyring.RetrieveKey(historyTokenKeyringKey)
+		token, _ := keyring.RetrieveExact(historyTokenKeyringKey)
 		history.SetBackend(history.NewHTTPBackend(cfg.History.Endpoint, token))
 	default:
 		fmt.Fprintf(os.Stderr, "⚠️  unknown history.backend %q; using local history instead.\n", cfg.History.Backend)
