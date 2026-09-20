@@ -24,7 +24,7 @@ type Backend interface {
 
 var (
 	mu     sync.RWMutex
-	active Backend = newLocalBackend()
+	active Backend = NewLocalBackend()
 )
 
 // SetBackend replaces the backend used by the package-level Record, List,

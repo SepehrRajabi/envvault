@@ -20,7 +20,9 @@ type localBackend struct {
 	mu sync.Mutex
 }
 
-func newLocalBackend() *localBackend {
+// NewLocalBackend builds a Backend that stores events in a JSON file under
+// the user's home directory (~/.envvault/history.json).
+func NewLocalBackend() Backend {
 	return &localBackend{}
 }
 
