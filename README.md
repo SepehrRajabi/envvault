@@ -459,6 +459,8 @@ envvault keys remove .env.vault alice
 
 View audit log of vault operations.
 
+History is recorded through a pluggable backend, so the log can live in a local JSON file (the default) or be forwarded to a remote HTTP collector instead. Every command that touches a vault (`lock`, `unlock`, `edit`, `rotate`, `k8s`, `docker`, `run`, `export`, `login`/`logout`, `keys add`/`remove`, `migrate`, `set`/`unset`/`rename`, `compose`) records an event through whichever backend is active.
+
 **Usage:**
 
 ```bash
@@ -467,8 +469,9 @@ envvault history
 
 **Flags:**
 
-- `-l, --limit <number>`: Show last N entries (default: 50)
+- `-l, --limit <number>`: Show last N entries (default: 10)
 - `--clear`: Clear all history
+- `--set-token <token>`: Store the auth token for the configured `http` history backend in the OS keyring
 
 **Examples:**
 
@@ -479,6 +482,24 @@ envvault history -l 20
 # Clear history
 envvault history --clear
 ```
+
+**Backends:**
+
+By default, history is written to `~/.envvault/history.json`. To forward events to a remote collector instead, set the backend in `~/.config/envvault/config.toml`:
+
+```toml
+[history]
+backend = "http"
+endpoint = "https://history.example.com"
+```
+
+If the endpoint requires authentication, store the token in the OS keyring (it is never written to the config file):
+
+```bash
+envvault history --set-token "your-token-here"
+```
+
+The `http` backend sends `POST /events` to record an event, `GET /events?limit=N` to list them, and `DELETE /events` for `--clear`, all with a `Bearer` token if one is configured. If `backend` is set to `http` without an `endpoint`, or to an unrecognized value, envvault falls back to the local file and prints a warning — history recording is best-effort and never blocks a vault operation.
 
 ---
 
@@ -1120,7 +1141,7 @@ envvault run project-b/.env.vault -- npm start
 - **No plaintext on disk**: `envvault run` and `envvault edit` handle decryption in memory
 - **Atomic writes**: Encrypted files use atomic operations
 - **Git protection**: `envvault guard` prevents commits of `.env` files
-- **Audit logging**: `envvault history` tracks all operations
+- **Audit logging**: `envvault history` tracks all operations, either in a local file or a remote HTTP collector
 - **Integrity verification**: `envvault verify` detects corruption without password
 - **OS keystore**: `envvault login` stores keys securely
 - **Zero-trust sharing**: Share only what's needed without full file access
