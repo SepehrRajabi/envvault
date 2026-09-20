@@ -2,7 +2,6 @@ package history
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,7 +35,7 @@ func (b *HTTPBackend) Record(e Event) error {
 		return fmt.Errorf("encoding history event: %w", err)
 	}
 
-	resp, err := b.do(context.Background(), http.MethodPost, "/events", bytes.NewReader(body))
+	resp, err := b.do(http.MethodPost, "/events", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("recording remote history event: %w", err)
 	}
@@ -51,7 +50,7 @@ func (b *HTTPBackend) List(limit int) ([]Event, error) {
 		path = fmt.Sprintf("/events?limit=%d", limit)
 	}
 
-	resp, err := b.do(context.Background(), http.MethodGet, path, nil)
+	resp, err := b.do(http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("listing remote history events: %w", err)
 	}
@@ -75,7 +74,7 @@ func (b *HTTPBackend) List(limit int) ([]Event, error) {
 }
 
 func (b *HTTPBackend) Clear() error {
-	resp, err := b.do(context.Background(), http.MethodDelete, "/events", nil)
+	resp, err := b.do(http.MethodDelete, "/events", nil)
 	if err != nil {
 		return fmt.Errorf("clearing remote history: %w", err)
 	}
@@ -84,11 +83,14 @@ func (b *HTTPBackend) Clear() error {
 	return checkStatus(resp)
 }
 
-func (b *HTTPBackend) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, method, b.Endpoint+path, body)
+// do issues an HTTP request. It deliberately does not wrap the request in a
+// context.WithTimeout: the caller reads the response body (io.ReadAll in
+// List) after do returns, and a deferred cancel here would fire before that
+// read completes, intermittently failing it with "context canceled" for any
+// response not already fully buffered. b.Client.Timeout already bounds the
+// entire round trip, including the body read, so it's sufficient on its own.
+func (b *HTTPBackend) do(method, path string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, b.Endpoint+path, body)
 	if err != nil {
 		return nil, err
 	}

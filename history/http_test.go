@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -168,6 +169,39 @@ func TestHTTPBackendClearSendsDelete(t *testing.T) {
 	}
 	if gotPath != "/events" {
 		t.Errorf("expected path /events, got %s", gotPath)
+	}
+}
+
+// TestHTTPBackendListDoesNotCancelBeforeBodyIsRead guards against a
+// regression where do() wrapped requests in a context.WithTimeout and
+// deferred its cancel, which fired as soon as do() returned — before List's
+// io.ReadAll ran. Any response not already fully buffered by the transport
+// then failed with "context canceled". Simulate that by trickling the
+// response body across two writes with a delay in between.
+func TestHTTPBackendListDoesNotCancelBeforeBodyIsRead(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatal("ResponseWriter does not support flushing")
+		}
+		w.Write([]byte("["))
+		flusher.Flush()
+		time.Sleep(50 * time.Millisecond)
+		w.Write([]byte(`{"action":"Lock"}]`))
+	}))
+	defer srv.Close()
+
+	b := NewHTTPBackend(srv.URL, "")
+	events, err := b.List(0)
+	if err != nil {
+		if strings.Contains(err.Error(), "context canceled") {
+			t.Fatalf("body read was canceled before completing: %v", err)
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(events) != 1 || events[0].Action != "Lock" {
+		t.Fatalf("unexpected events: %+v", events)
 	}
 }
 
