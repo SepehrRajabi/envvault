@@ -1,3 +1,6 @@
+// Package keyring stores and retrieves secrets — vault decryption keys, and
+// other entries like the history HTTP backend's auth token — in the OS
+// keychain via zalando/go-keyring.
 package keyring
 
 import (

@@ -10,24 +10,35 @@ import (
 	"strings"
 )
 
+// Rule is a single key's validation constraints, parsed from one line of a
+// schema file (e.g. `PORT = required, uint, 20-65550`).
 type Rule struct {
 	Key        string
 	Required   bool
 	Constrains []string
 }
 
+// Schema is a set of Rules parsed from a .envschema file, used to validate
+// an .env file via Validate or ValidateWithOptions.
 type Schema struct {
 	Rules []Rule
 }
 
+// ValidateOptions configures Schema.ValidateWithOptions.
 type ValidateOptions struct {
+	// Strict rejects keys present in the env file but not defined in the
+	// schema, in addition to the schema's own rules.
 	Strict bool
 }
 
+// IsSchemaPath reports whether filePath looks like a schema file, based on
+// its extension (.envschema or .env.schema).
 func IsSchemaPath(filePath string) bool {
 	return strings.HasSuffix(filePath, ".envschema") || strings.HasSuffix(filePath, ".env.schema")
 }
 
+// ParseSchema reads and parses a schema file at filePath into a Schema.
+// filePath must satisfy IsSchemaPath.
 func ParseSchema(filePath string) (*Schema, error) {
 	if !IsSchemaPath(filePath) {
 		return nil, fmt.Errorf("invalid schema file: %s", filePath)
@@ -108,10 +119,15 @@ func splitSchemaTokens(value string) []string {
 	return tokens
 }
 
+// Validate checks envVars against the schema's rules and returns a
+// human-readable error message per violation (missing required keys, type
+// mismatches, failed constraints). An empty slice means it passed.
 func (s *Schema) Validate(envVars []EnvVar) []string {
 	return s.ValidateWithOptions(envVars, ValidateOptions{})
 }
 
+// ValidateWithOptions is Validate with additional options; see
+// ValidateOptions.
 func (s *Schema) ValidateWithOptions(envVars []EnvVar, opts ValidateOptions) []string {
 	var errors []string
 	envMap := make(map[string]string)
@@ -351,6 +367,8 @@ func validateBoolean(value string) bool {
 	return value == "true" || value == "false" || value == "1" || value == "0"
 }
 
+// Number is the set of types checkBounds can compare against a numeric
+// constraint (e.g. "20-65550").
 type Number interface {
 	int | int8 | int16 | int32 | int64 |
 		uint | uint8 | uint16 | uint32 | uint64 |
@@ -407,6 +425,9 @@ func isBoundsConstraint(value string) bool {
 	return err == nil
 }
 
+// GenerateSchema produces a .envschema document with one rule per unique
+// key in envVars, its type inferred from the key's current value (see
+// InferSchemaType). If required is true, every rule also gets "required".
 func GenerateSchema(envVars []EnvVar, required bool) string {
 	var b strings.Builder
 	seen := make(map[string]bool)
@@ -431,6 +452,8 @@ func GenerateSchema(envVars []EnvVar, required bool) string {
 	return b.String()
 }
 
+// InferSchemaType guesses a schema type token (bool, uint, int, float, or
+// str) for value, in that priority order.
 func InferSchemaType(value string) string {
 	value = unqoute(strings.TrimSpace(value))
 	if value == "" {

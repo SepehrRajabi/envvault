@@ -1,3 +1,7 @@
+// Package config loads and saves envvault's TOML configuration file. The
+// file's path is resolved, in order, from an explicit override (see
+// SetPathOverride, used by the --config flag), the ENVVAULT_CONFIG
+// environment variable, or the default ~/.config/envvault/config.toml.
 package config
 
 import (

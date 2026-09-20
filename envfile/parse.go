@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// EnvVar is a single KEY=value entry from a .env file.
 type EnvVar struct {
 	Key     string
 	Value   string
@@ -13,6 +14,7 @@ type EnvVar struct {
 	Line    int
 }
 
+// ParseError reports a malformed line encountered while parsing a .env file.
 type ParseError struct {
 	Line    int
 	Message string
@@ -22,6 +24,8 @@ func (p *ParseError) Error() string {
 	return "Parse error on line " + string(rune(p.Line)) + ": " + p.Message
 }
 
+// Parse reads .env-formatted content (KEY=value per line, blank lines and
+// #-prefixed comments ignored) into a slice of EnvVar.
 func Parse(content string) ([]EnvVar, error) {
 	var EnvVars []EnvVar
 	lineNumber := 0
@@ -61,6 +65,9 @@ func unqoute(value string) string {
 	return value
 }
 
+// Diff compares two sets of EnvVars by key, returning entries present only
+// in b (added), only in a (removed), and present in both with a changed
+// value.
 func Diff(a, b []EnvVar) (added, removed []EnvVar, changed []struct{ Old, New EnvVar }) {
 	mapA := make(map[string]EnvVar)
 	mapB := make(map[string]EnvVar)
@@ -96,6 +103,9 @@ func Diff(a, b []EnvVar) (added, removed []EnvVar, changed []struct{ Old, New En
 	return
 }
 
+// FormatDiff renders the result of Diff as ANSI-colored +/- lines
+// (red for removed, green for added; a changed entry prints as a
+// removed line followed by an added line).
 func FormatDiff(added, removed []EnvVar, changed []struct{ Old, New EnvVar }) string {
 	var b strings.Builder
 

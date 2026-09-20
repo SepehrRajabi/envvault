@@ -13,10 +13,13 @@ import (
 	"golang.org/x/term"
 )
 
+// DeriveKey derives a 32-byte symmetric key from password and salt using
+// Argon2id with the given time cost, memory cost (KiB), and thread count.
 func DeriveKey(password, salt []byte, time, memory uint32, threads uint8) []byte {
 	return argon2.IDKey(password, salt, time, memory, threads, 32)
 }
 
+// RandomBytes returns n cryptographically random bytes.
 func RandomBytes(n int) ([]byte, error) {
 	b := make([]byte, n)
 	_, err := io.ReadFull(rand.Reader, b)
@@ -51,6 +54,9 @@ func readPassword(prompt string) ([]byte, error) {
 	return password, nil
 }
 
+// CheckPasswordStrength rejects passwords scoring below 3/4 on zxcvbn's
+// strength estimate, unless allowWeak is set (in which case it warns on
+// stderr and proceeds instead of returning an error).
 func CheckPasswordStrength(password []byte, allowWeak bool) error {
 	result := zxcvbn.PasswordStrength(string(password), nil)
 
@@ -72,6 +78,10 @@ func CheckPasswordStrength(password []byte, allowWeak bool) error {
 	return nil
 }
 
+// GetPassword returns the password to use for an operation: the
+// ENVVAULT_PASSWORD environment variable if set (for CI/non-interactive
+// use), otherwise it prompts on the terminal with prompt (or reads a single
+// line from stdin if stdin isn't a terminal).
 func GetPassword(prompt string) ([]byte, error) {
 	if envPass := os.Getenv("ENVVAULT_PASSWORD"); envPass != "" {
 		return []byte(envPass), nil
@@ -79,6 +89,9 @@ func GetPassword(prompt string) ([]byte, error) {
 	return readPassword(prompt)
 }
 
+// IsBeingTraced reports whether the current process has a debugger or
+// tracer attached, per /proc/self/status. It only works on Linux; on other
+// platforms (or if /proc is unavailable) it returns an error.
 func IsBeingTraced() (bool, error) {
 	file, err := os.Open("/proc/self/status")
 	if err != nil {

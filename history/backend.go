@@ -1,3 +1,7 @@
+// Package history records and retrieves the audit log of vault operations
+// (lock, unlock, edit, rotate, ...) through a pluggable Backend: a local
+// JSON file by default (see NewLocalBackend), or an HTTP collector (see
+// NewHTTPBackend).
 package history
 
 import (
