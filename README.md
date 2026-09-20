@@ -23,10 +23,11 @@ Encrypted `.env` file manager. Lock, unlock, diff, and share environment variabl
 5. [Utility Commands](#utility-commands)
 6. [Authentication & Keystore Commands](#authentication--keystore-commands)
 7. [Zero-Trust Sharing Commands](#zero-trust-sharing-commands)
-8. [Common Workflows](#common-workflows)
-9. [Security Considerations](#security-considerations)
-10. [Limitations & Roadmap](#limitations--roadmap)
-11. [Contributing](#contributing)
+8. [Environment Variables](#environment-variables)
+9. [Common Workflows](#common-workflows)
+10. [Security Considerations](#security-considerations)
+11. [Limitations & Roadmap](#limitations--roadmap)
+12. [Contributing](#contributing)
 
 ---
 
@@ -1096,6 +1097,35 @@ envvault receive evlt://eyJhbGciOi... --import .env
 
 # Pipe to source
 envvault receive evlt://eyJhbGciOi... --output | source /dev/stdin
+```
+
+---
+
+## Environment Variables
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `ENVVAULT_PASSWORD` | any command that decrypts/encrypts a password-based vault | Supplies the vault password non-interactively instead of prompting, for CI and scripted use (`docker`, `k8s`, `run`, etc.) |
+| `ENVVAULT_CONFIG` | every command | Overrides the config file path, taking precedence over the default `~/.config/envvault/config.toml`. The `--config` flag takes precedence over this |
+| `ENVVAULT_DEFAULT_PROVIDER` | startup (before any command runs) | Overrides the default encryption algorithm/provider (falls back to `aes256gcm-argon2id` if unset or unrecognized) |
+| `AGE_IDENTITY` | commands operating on `age-pubkey` vaults | The Age private key itself (an `AGE-SECRET-KEY-...` string, not a file path) used to decrypt without a password. Falls back to `~/.envvault/keys.txt`, then `~/.config/age/keys.txt`, if unset |
+| `DEBUG` | startup (before any command runs) | Set to `1`/`true` to allow running under a debugger/tracer and to downgrade the insecure-default-provider check from a hard exit to a warning. Unset (or any other value) enforces both checks strictly |
+| `VISUAL` / `EDITOR` | `envvault edit` | Selects the editor used to edit a decrypted vault in place (`VISUAL` takes precedence over `EDITOR`); standard Unix convention, not envvault-specific |
+
+**Examples:**
+
+```bash
+# Decrypt non-interactively in CI
+ENVVAULT_PASSWORD=$CI_VAULT_PASSWORD envvault run .env.vault -- npm test
+
+# Point every envvault command in this shell at a custom config file
+export ENVVAULT_CONFIG=/etc/envvault/config.toml
+
+# Decrypt an age-pubkey vault using a specific private key, without a keys.txt file
+AGE_IDENTITY="AGE-SECRET-KEY-1..." envvault unlock .env.vault
+
+# Allow running under a debugger without tripping the anti-tracing check
+DEBUG=1 dlv exec ./envvault -- unlock .env.vault
 ```
 
 ---

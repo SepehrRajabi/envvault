@@ -10,9 +10,11 @@ import (
 )
 
 func main() {
-	// Check if a debuger or tracer is attached, but only if DEBUG is not explicitly disabled.
+	// Check if a debugger or tracer is attached, unless the user explicitly
+	// enabled debug mode (DEBUG=1/true), which is meant to allow debugging.
 	debugMode := strings.ToLower(os.Getenv("DEBUG"))
-	if debugMode == "0" || debugMode == "false" {
+	debugEnabled := debugMode == "1" || debugMode == "true"
+	if !debugEnabled {
 		if isDebugging, _ := crypto.IsBeingTraced(); isDebugging {
 			fmt.Println("Security Error: Tracer detected. Exiting for safety.")
 			os.Exit(1)
@@ -26,7 +28,7 @@ func main() {
 	}
 	if p, err := crypto.GetProvider(defaultProvider); err == nil {
 		if !p.Description().Secure {
-			if debugMode == "1" || debugMode == "true" {
+			if debugEnabled {
 				fmt.Printf("⚠️ Warning: The default provider %q is not secure. Consider switching to a more secure provider.\n", defaultProvider)
 			} else {
 				fmt.Printf("⚠️ Warning: The default provider %q is not secure. Set DEBUG=1 for more details.\n", defaultProvider)
