@@ -13,6 +13,7 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
+	configureHistoryBackend()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

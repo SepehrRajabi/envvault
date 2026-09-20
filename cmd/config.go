@@ -70,6 +70,16 @@ func showConfig() error {
 	fmt.Println("\n- Sharing Settings")
 	fmt.Printf("  Default Format:       %s\n", cfg.Sharing.DefaultFormat)
 
+	fmt.Println("\n- History Settings")
+	backend := cfg.History.Backend
+	if backend == "" {
+		backend = "local"
+	}
+	fmt.Printf("  Backend:              %s\n", backend)
+	if backend == "http" {
+		fmt.Printf("  Endpoint:             %s\n", cfg.History.Endpoint)
+	}
+
 	path, _ := config.GetConfigPath()
 	fmt.Printf("\nConfig file: %s\n", path)
 	if _, err := os.Stat(path); os.IsNotExist(err) {

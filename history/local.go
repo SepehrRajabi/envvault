@@ -7,81 +7,69 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
-	"time"
 )
 
 const (
-	maxEvents = 1000
-	dirName   = ".envvault"
-	fileName  = "history.json"
+	maxLocalEvents = 1000
+	localDirName   = ".envvault"
+	localFileName  = "history.json"
 )
 
-var mu sync.Mutex
-
-type Event struct {
-	Timestamp time.Time `json:"timestamp"`
-	Action    string    `json:"action"`
-	File      string    `json:"file"`
-	Algorithm string    `json:"algorithm,omitempty"`
+// localBackend stores events in a JSON file under the user's home directory.
+type localBackend struct {
+	mu sync.Mutex
 }
 
-func historyPath() (string, error) {
+func newLocalBackend() *localBackend {
+	return &localBackend{}
+}
+
+func localHistoryPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("finding home directory: %w", err)
 	}
-	return filepath.Join(home, dirName, fileName), nil
+	return filepath.Join(home, localDirName, localFileName), nil
 }
 
-// Record adds a new event to the history log.
-func Record(action, file, algorithm string) error {
-	mu.Lock()
-	defer mu.Unlock()
+func (b *localBackend) Record(e Event) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
-	path, err := historyPath()
+	path, err := localHistoryPath()
 	if err != nil {
 		return err
 	}
 
-	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("creating history directory: %w", err)
 	}
 
-	// Read existing history
-	events, err := readEvents(path)
+	events, err := readLocalEvents(path)
 	if err != nil {
 		return err
 	}
 
-	// Append new event
-	events = append(events, Event{
-		Timestamp: time.Now(),
-		Action:    action,
-		File:      file,
-		Algorithm: algorithm,
-	})
+	events = append(events, e)
 
-	// Cap the size (keep the most recent maxEvents)
-	if len(events) > maxEvents {
-		events = events[len(events)-maxEvents:]
+	// Cap the size (keep the most recent maxLocalEvents)
+	if len(events) > maxLocalEvents {
+		events = events[len(events)-maxLocalEvents:]
 	}
 
-	// Write back
-	return writeEvents(path, events)
+	return writeLocalEvents(path, events)
 }
 
-// List returns the most recent `limit` events.
-func List(limit int) ([]Event, error) {
-	mu.Lock()
-	defer mu.Unlock()
+func (b *localBackend) List(limit int) ([]Event, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
-	path, err := historyPath()
+	path, err := localHistoryPath()
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := readEvents(path)
+	events, err := readLocalEvents(path)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +86,23 @@ func List(limit int) ([]Event, error) {
 	return events, nil
 }
 
-func readEvents(path string) ([]Event, error) {
+func (b *localBackend) Clear() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	path, err := localHistoryPath()
+	if err != nil {
+		return err
+	}
+
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("clearing history: %w", err)
+	}
+
+	return nil
+}
+
+func readLocalEvents(path string) ([]Event, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -119,7 +123,7 @@ func readEvents(path string) ([]Event, error) {
 	return events, nil
 }
 
-func writeEvents(path string, events []Event) error {
+func writeLocalEvents(path string, events []Event) error {
 	data, err := json.MarshalIndent(events, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling history: %w", err)
