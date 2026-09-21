@@ -105,6 +105,26 @@ func DeleteKey(filePath string) error {
 	return nil
 }
 
+// probeKeyringKey is the key used by CheckAvailable's round-trip test. It's
+// set and deleted on every call, so it should never be left behind.
+const probeKeyringKey = "doctor-probe"
+
+// CheckAvailable verifies the OS keyring backend is reachable by writing,
+// reading back, and deleting a throwaway entry. Unlike HasKey/RetrieveKey,
+// it doesn't depend on any real entry already existing, so it works even
+// before the user has ever stored a key.
+func CheckAvailable() error {
+	if err := kr.Set(ServiceName, probeKeyringKey, "probe"); err != nil {
+		return fmt.Errorf("keychain unavailable (are you on a headless Linux server?): %w", err)
+	}
+	defer kr.Delete(ServiceName, probeKeyringKey)
+
+	if _, err := kr.Get(ServiceName, probeKeyringKey); err != nil {
+		return fmt.Errorf("keychain round-trip failed: %w", err)
+	}
+	return nil
+}
+
 // HasKey checks if a key is stored in the OS keystore.
 // If filePath is provided, checks both project-specific and default keys.
 // If filePath is empty, checks only the default key.
