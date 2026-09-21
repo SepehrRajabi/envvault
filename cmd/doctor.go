@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -126,13 +128,32 @@ func checkAgeIdentity() doctorCheck {
 		Hint: "only needed for the age-pubkey algorithm; set AGE_IDENTITY or create ~/.envvault/keys.txt"}
 }
 
+// checkEditor mirrors launchEditor's own fallback order (VISUAL, then
+// EDITOR, then a platform default), since edit doesn't actually fail when
+// neither env var is set — it falls back to notepad/vi. The check only
+// warns if even that fallback binary can't be found on PATH.
 func checkEditor() doctorCheck {
-	editor := os.Getenv("EDITOR")
+	source := "VISUAL"
+	editor := os.Getenv("VISUAL")
 	if editor == "" {
-		return doctorCheck{Name: "$EDITOR", Warn: true, Detail: "not set",
-			Hint: "'envvault edit' will fail without it"}
+		source = "EDITOR"
+		editor = os.Getenv("EDITOR")
 	}
-	return doctorCheck{Name: "$EDITOR", OK: true, Detail: editor}
+	if editor == "" {
+		source = "default"
+		if runtime.GOOS == "windows" {
+			editor = "notepad"
+		} else {
+			editor = "vi"
+		}
+	}
+
+	bin := strings.Fields(editor)[0]
+	if _, err := exec.LookPath(bin); err != nil {
+		return doctorCheck{Name: "Editor", Warn: true, Detail: fmt.Sprintf("%s (%s) not found on PATH", editor, source),
+			Hint: "'envvault edit' will fail; set $EDITOR to an installed editor"}
+	}
+	return doctorCheck{Name: "Editor", OK: true, Detail: fmt.Sprintf("%s (%s)", editor, source)}
 }
 
 func checkGitignore() doctorCheck {

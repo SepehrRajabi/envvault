@@ -912,7 +912,7 @@ envvault doctor
 
 - Checks OS keyring availability with a live write/read/delete round-trip (not just whether a key happens to be stored)
 - Checks for an age identity via `AGE_IDENTITY`, `~/.envvault/keys.txt`, or `~/.config/age/keys.txt`
-- Checks `$EDITOR` is set (required by `envvault edit`)
+- Resolves the editor `envvault edit` would use (`$VISUAL`, then `$EDITOR`, then the platform default — `notepad` on Windows, `vi` elsewhere) and checks it's actually on `PATH`
 - Checks git protection: `.gitignore` patterns and pre-commit hook installation
 - Checks memory-lock (`mlock`) support for keeping decrypted secrets out of swap
 - Prints the current binary version and all supported algorithms (same list as `envvault algorithms`)
@@ -936,7 +936,7 @@ Check                        Status   Detail
 OS keyring                   ✅ OK     available
 Age identity                 ⚠️  WARN no identity file found
                                         → only needed for the age-pubkey algorithm; set AGE_IDENTITY or create ~/.envvault/keys.txt
-$EDITOR                      ✅ OK     vim
+Editor                       ✅ OK     vi (default)
 .gitignore                   ✅ OK     configured with .env patterns
 Git pre-commit hook          ⚠️  WARN not installed
                                         → run: envvault guard --hook
