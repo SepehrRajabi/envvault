@@ -47,12 +47,24 @@ func Parse(content string) ([]EnvVar, error) {
 			return nil, &ParseError{Line: lineNumber, Message: "Invalid format"}
 		}
 		EnvVars = append(EnvVars, EnvVar{
-			Key:   strings.TrimSpace(parts[0]),
+			Key:   StripExportPrefix(strings.TrimSpace(parts[0])),
 			Value: strings.TrimSpace(parts[1]),
 		})
 	}
 
 	return EnvVars, scanner.Err()
+}
+
+// StripExportPrefix removes a leading "export " from a KEY=value line's
+// key, as produced by shell-sourceable .env files (e.g. "export FOO=bar").
+// Keys that merely start with "export" without a following separator (e.g.
+// "exported_at") are left untouched.
+func StripExportPrefix(key string) string {
+	rest, ok := strings.CutPrefix(key, "export")
+	if !ok || rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
+		return key
+	}
+	return strings.TrimSpace(rest)
 }
 
 func unqoute(value string) string {

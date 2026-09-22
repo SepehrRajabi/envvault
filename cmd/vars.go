@@ -125,10 +125,11 @@ func loadEnvDocument(filePath string) (*loadedEnvDocument, error) {
 }
 
 type envLine struct {
-	Raw   string
-	Key   string
-	Value string
-	IsKV  bool
+	Raw    string
+	Prefix string // "export " when the line was declared with a leading export, else ""
+	Key    string
+	Value  string
+	IsKV   bool
 }
 
 func parseEnvDocumentLines(content string) ([]envLine, error) {
@@ -150,14 +151,20 @@ func parseEnvDocumentLines(content string) ([]envLine, error) {
 			return nil, fmt.Errorf("invalid env format on line %d", i+1)
 		}
 		key := strings.TrimSpace(before)
+		prefix := ""
+		if stripped := envfile.StripExportPrefix(key); stripped != key {
+			prefix = "export "
+			key = stripped
+		}
 		if key == "" {
 			return nil, fmt.Errorf("invalid empty key on line %d", i+1)
 		}
 		lines = append(lines, envLine{
-			Raw:   line,
-			Key:   key,
-			Value: strings.TrimSpace(after),
-			IsKV:  true,
+			Raw:    line,
+			Prefix: prefix,
+			Key:    key,
+			Value:  strings.TrimSpace(after),
+			IsKV:   true,
 		})
 	}
 
@@ -208,7 +215,7 @@ func setEnvValue(content []byte, key, value string) ([]byte, bool, error) {
 	for i := range lines {
 		if lines[i].IsKV && lines[i].Key == key {
 			lines[i].Value = value
-			lines[i].Raw = fmt.Sprintf("%s=%s", key, value)
+			lines[i].Raw = fmt.Sprintf("%s%s=%s", lines[i].Prefix, key, value)
 			updated = true
 			break
 		}
@@ -275,7 +282,7 @@ func renameEnvKey(content []byte, oldKey, newKey string) ([]byte, error) {
 	}
 
 	lines[oldIndex].Key = newKey
-	lines[oldIndex].Raw = fmt.Sprintf("%s=%s", newKey, lines[oldIndex].Value)
+	lines[oldIndex].Raw = fmt.Sprintf("%s%s=%s", lines[oldIndex].Prefix, newKey, lines[oldIndex].Value)
 	return formatEnvDocumentLines(lines), nil
 }
 
