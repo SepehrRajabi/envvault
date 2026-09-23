@@ -56,6 +56,9 @@ var statusCmd = &cobra.Command{
 		fmt.Println("\n🔐 Git Protection")
 		printGitStatus()
 
+		fmt.Println("\n🐞 Debug Mode")
+		printDebugStatus()
+
 		return nil
 	},
 }
@@ -134,6 +137,31 @@ func hasGitignorePatterns() bool {
 		}
 	}
 	return true
+}
+
+// debugEnvValue and isDebugEnabled mirror main.go's own DEBUG parsing
+// (DEBUG=1/true enables debug mode, anything else — including unset —
+// leaves it disabled).
+func debugEnvValue() string {
+	return os.Getenv("DEBUG")
+}
+
+func isDebugEnabled() bool {
+	v := strings.ToLower(debugEnvValue())
+	return v == "1" || v == "true"
+}
+
+func printDebugStatus() {
+	raw := debugEnvValue()
+	if raw == "" {
+		fmt.Println("   ⚠️  DEBUG not set (disabled)")
+		return
+	}
+	if isDebugEnabled() {
+		fmt.Printf("   ✅ DEBUG=%s (enabled)\n", raw)
+	} else {
+		fmt.Printf("   ⚠️  DEBUG=%s (set, but not a recognized truthy value — disabled)\n", raw)
+	}
 }
 
 func hasPreCommitHook() bool {

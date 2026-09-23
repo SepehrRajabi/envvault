@@ -873,6 +873,7 @@ envvault status
 - Indicates whether a decryption key is stored in the OS keystore
 - Displays last modification time for each vault file
 - Shows git protection status (.gitignore configuration and pre-commit hook setup)
+- Shows whether `DEBUG` is set, and its raw value if so
 
 **Examples:**
 
@@ -894,6 +895,9 @@ prod.env.vault            aes256gcm-argon2id   ✅ Yes           2026-04-17 21:2
 🔐 Git Protection
    ✅ .gitignore configured with .env patterns
    ✅ Pre-commit hook installed
+
+🐞 Debug Mode
+   ⚠️  DEBUG not set (disabled)
 ```
 
 ---
@@ -915,6 +919,7 @@ envvault doctor
 - Resolves the editor `envvault edit` would use (`$VISUAL`, then `$EDITOR`, then the platform default — `notepad` on Windows, `vi` elsewhere) and checks it's actually on `PATH`
 - Checks git protection: `.gitignore` patterns and pre-commit hook installation
 - Checks memory-lock (`mlock`) support for keeping decrypted secrets out of swap
+- Reports whether `DEBUG` is set and its raw value; flags it as a warning when enabled, since it bypasses the tracer-detection and insecure-provider checks in `main.go`
 - Prints the current binary version and all supported algorithms (same list as `envvault algorithms`)
 - Scans the current directory for vault files and flags any that fail structural verification (corrupted or tampered)
 - Has no flags; ⚠️ warnings are non-fatal, only ❌ failures are counted in the summary
@@ -941,6 +946,7 @@ Editor                       ✅ OK     vi (default)
 Git pre-commit hook          ⚠️  WARN not installed
                                         → run: envvault guard --hook
 Memory lock (mlock)          ✅ OK     supported
+Debug mode                   ✅ OK     DEBUG not set (disabled)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 version: 0.0.3 beta

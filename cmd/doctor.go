@@ -46,6 +46,7 @@ func runDoctor() {
 		checkGitignore(),
 		checkPreCommitHook(),
 		checkMemoryLock(),
+		checkDebugMode(),
 	}
 
 	fmt.Println("\n🩺 envvault doctor")
@@ -184,6 +185,21 @@ func checkMemoryLock() doctorCheck {
 	}
 	defer lb.Unlock()
 	return doctorCheck{Name: "Memory lock (mlock)", OK: true, Detail: "supported"}
+}
+
+// checkDebugMode reports whether DEBUG is set and, if so, its raw value —
+// this mirrors main.go's own DEBUG=1/true parsing (see isDebugEnabled),
+// which controls both the tracer check and the insecure-provider warning.
+func checkDebugMode() doctorCheck {
+	raw := debugEnvValue()
+	if raw == "" {
+		return doctorCheck{Name: "Debug mode", OK: true, Detail: "DEBUG not set (disabled)"}
+	}
+	if isDebugEnabled() {
+		return doctorCheck{Name: "Debug mode", Warn: true, Detail: fmt.Sprintf("DEBUG=%s (enabled)", raw),
+			Hint: "tracer detection and insecure-provider checks are bypassed while DEBUG is set"}
+	}
+	return doctorCheck{Name: "Debug mode", Warn: true, Detail: fmt.Sprintf("DEBUG=%s (set, but not truthy — disabled)", raw)}
 }
 
 // reportSuspiciousVaultFiles scans the current directory for vault files
