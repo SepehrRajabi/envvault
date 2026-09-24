@@ -1426,6 +1426,7 @@ for more info, see [SECURITY](SECURITY.md)
 - Pre-built binaries and Homebrew formula (via GoReleaser)
 - Improved documentation and examples
 - Possible future support for hardware security keys (YubiKey/PIV)
+- Add challenges
 
 ## Contributing
 
