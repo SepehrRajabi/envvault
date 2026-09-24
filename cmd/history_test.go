@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/SepehrRajabi/envvault/history"
+	"github.com/SepehrRajabi/envvault/homedir"
 	"github.com/SepehrRajabi/envvault/keyring"
 	kr "github.com/zalando/go-keyring"
 )
@@ -69,7 +70,7 @@ func TestHistoryCommandClearRemovesFile(t *testing.T) {
 		t.Fatalf("history.Record: %v", err)
 	}
 
-	home, _ := os.UserHomeDir()
+	home, _ := homedir.Dir()
 	historyPath := filepath.Join(home, ".envvault", "history.json")
 	if _, err := os.Stat(historyPath); err != nil {
 		t.Fatalf("expected history file to exist before clear: %v", err)
