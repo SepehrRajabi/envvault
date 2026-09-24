@@ -60,23 +60,30 @@ envvault run .env.vault -- npm start
 
 ### lock
 
-Encrypt an `.env` file into a `.env.vault` file.
+Encrypt an `.env` file into a `.env.vault` file. `encrypt` is an alias for `lock`.
 
 **Usage:**
 
 ```bash
 envvault lock [file]
+envvault encrypt [file]
 ```
 
 **Flags:**
 
-- `--algorithm <name>`: Encryption algorithm (default: aes256gcm-argon2id)
+- `-a, --algorithm <name>`: Encryption algorithm (default: aes256gcm-argon2id)
 - `-r, --recipient <pubkey>`: Age public key for encryption (use multiple times for multiple recipients)
-- `--shares <number>`: Number of Shamir shares to generate (default: 3)
-- `--threshold <number>`: Minimum shares needed to recover secret (default: 2)
+- `--shares <number>`: Number of Shamir shares to generate (default: 5)
+- `--threshold <number>`: Minimum shares needed to recover secret (default: 3)
 - `--shares-dir <path>`: Directory to save Shamir share files
 - `--allow-weak`: Allow weak passwords (not recommended)
 - `--allow-insecure`: Allow insecure algorithms (only for testing)
+- `--no-trust`: Don't pin this vault's algorithm/recipients as trusted (see [trust](#trust)); by default, `lock` pins them automatically
+- `--list-algorithms`: List available algorithms and exit
+
+**Details:**
+
+- Unless `--no-trust` is passed, `lock` pins the resulting vault's algorithm (and recipients, for `age-pubkey`) as its trusted baseline — see [trust](#trust) for how this is used to detect substitution later
 
 **Examples:**
 
@@ -87,26 +94,32 @@ envvault lock .env
 # Encrypt with Age public key (no password)
 envvault lock .env -r age1abc... -r age1xyz...
 
-# Encrypt with Shamir secret sharing (3 shares, threshold 2)
-envvault lock .env --algorithm shamir-aes256gcm --shares 3 --threshold 2 --shares-dir ./shares
+# Encrypt with Shamir secret sharing (5 shares, threshold 3)
+envvault lock .env --algorithm shamir-aes256gcm --shares 5 --threshold 3 --shares-dir ./shares
 ```
 
 ---
 
 ### unlock
 
-Decrypt a `.env.vault` file back to `.env`.
+Decrypt a `.env.vault` file back to `.env`. `decrypt` is an alias for `unlock`.
 
 **Usage:**
 
 ```bash
 envvault unlock [vault-file]
+envvault decrypt [vault-file]
 ```
 
 **Flags:**
 
 - `-o, --output <path>`: Output file path (default: remove `.vault` suffix)
-- `--algorithm <name>`: Override detected algorithm
+- `--request-access`: For `shamir-aes256gcm` vaults, submit a share toward quorum instead of decrypting directly (see below)
+- `--share <share>`: Shamir share to submit with `--request-access` (prompts if omitted)
+
+**Details:**
+
+- Checks the vault against its pinned [trust](#trust) record (if any) before decrypting, to detect a file substituted on disk
 
 **Examples:**
 
@@ -119,6 +132,9 @@ envvault unlock .env.vault -o .env.local
 
 # Uses OS keystore if key is stored (no password prompt)
 envvault unlock .env.vault
+
+# Submit a Shamir share toward quorum decryption instead of decrypting alone
+envvault unlock backup.env.vault --request-access --share "AbC123..."
 ```
 
 ---
@@ -136,7 +152,6 @@ envvault edit [vault-file]
 **Flags:**
 
 - `-r, --recipient <pubkey>`: Re-encrypt with Age public keys (optional)
-- `--algorithm <name>`: Override detected algorithm
 
 **Details:**
 
@@ -170,7 +185,6 @@ envvault rotate [vault-file]
 **Flags:**
 
 - `--allow-weak`: Allow weak passwords (not recommended)
-- `--algorithm <name>`: Override detected algorithm
 
 **Details:**
 
@@ -187,9 +201,42 @@ envvault rotate .env.vault
 
 ---
 
+### migrate
+
+Change the encryption algorithm of an existing vault file in-place (or to a new file).
+
+**Usage:**
+
+```bash
+envvault migrate [vault-file]
+```
+
+**Flags:**
+
+- `--from <name>`: Current encryption algorithm (optional; auto-detected from the vault header if omitted)
+- `--to <name>`: New encryption algorithm (optional; defaults to the same algorithm as `--from`, which is a no-op re-encryption)
+- `--output <path>`: Write the migrated vault to a new file instead of overwriting the original
+
+**Details:**
+
+- Decrypts with the old algorithm, then re-encrypts with the new one using the same password/recipients
+- Not suitable for migrating *to* `age-pubkey` — that requires recipients, not a password; use `lock`/`edit -r` for that instead
+
+**Examples:**
+
+```bash
+# Migrate a vault to a different algorithm in-place
+envvault migrate .env.vault --to chacha20poly1305
+
+# Migrate to a new output file, leaving the original untouched
+envvault migrate .env.vault --to aes256gcm-argon2id --output migrated.env.vault
+```
+
+---
+
 ### diff
 
-Compare two `.env` or `.env.vault` files by key. Values are redacted by default to avoid leaking secrets in terminal output or CI logs.
+Compare two `.env` or `.env.vault` files by key. **Values are shown by default** — pass `--redacted` explicitly if you don't want plaintext values in terminal output or CI logs.
 
 **Usage:**
 
@@ -199,31 +246,28 @@ envvault diff [file1] [file2]
 
 **Flags:**
 
-- `--keys-only`: Show only added, removed, and changed key names
-- `--values`: Show plaintext values in the diff output
-- `--redacted`: Redact values in the diff output (default: `true`; use `--redacted=false` or `--values` to reveal values)
+- `--keys-only`: Show only added, removed, and changed key names (no values, redacted or not)
+- `--values`: Show plaintext values in the diff output (this is already the default; kept for explicitness)
+- `--redacted`: Redact values in the diff output (default: `false` — values are shown unless this is passed)
 - `--json`: Output a machine-readable JSON diff
 
 **Examples:**
 
 ```bash
-# Compare two vault files with values redacted
+# Compare two vault files (values shown by default)
 envvault diff .env.vault .env.prod.vault
 
-# Compare vault and plain text file
-envvault diff .env.vault .env.local
+# Compare vault and plain text file, redacting values for a CI log
+envvault diff .env.vault .env.local --redacted
 
 # Show only changed key names
 envvault diff .env.vault .env.prod.vault --keys-only
 
-# Include plaintext values intentionally
-envvault diff .env.vault .env.prod.vault --values
-
-# Output JSON for automation, redacted by default
+# Output JSON for automation, values shown by default
 envvault diff .env.vault .env.prod.vault --json
 
-# Output JSON including plaintext values
-envvault diff .env.vault .env.prod.vault --json --values
+# Output JSON with values redacted
+envvault diff .env.vault .env.prod.vault --json --redacted
 ```
 
 ---
@@ -384,6 +428,29 @@ envvault verify .env.vault
 
 ---
 
+### verify-commit
+
+Verify the git commit signature metadata embedded in a vault (recorded automatically by `lock` when run inside a git repository).
+
+**Usage:**
+
+```bash
+envvault verify-commit [vault-file]
+```
+
+**Details:**
+
+- Fails if the vault has no embedded commit metadata, if the commit isn't present in the current repository, or if `git verify-commit` reports the signature as invalid
+- Requires `git` on `PATH` and running from inside the repository the vault's commit belongs to
+
+**Examples:**
+
+```bash
+envvault verify-commit .env.vault
+```
+
+---
+
 ### keygen
 
 Generate a new Age X25519 keypair.
@@ -413,7 +480,7 @@ envvault lock .env -r $PUBLIC_KEY
 
 ### keys add
 
-Add a new recipient key to a vault file.
+Add a new recipient to an `age-pubkey` vault and re-encrypt it in place.
 
 **Usage:**
 
@@ -423,7 +490,14 @@ envvault keys add [vault-file] [name] [public-key]
 
 **Flags:**
 
-- `--role <role>`: Role for the key (optional)
+- `--role <role>`: A label for the key, shown in the confirmation message (optional; not persisted in the vault — only public keys are stored as recipients)
+
+**Details:**
+
+- Only works on `age-pubkey` vaults; use `envvault migrate` to convert a password vault first
+- Decrypts the vault (using your own identity, since you must already be a recipient to add another), adds the new public key to the recipient set, and re-encrypts — the vault file on disk is updated
+- Updates the vault's [trust](#trust) pin to match the new recipient set
+- `name` is only used in the printed confirmation; recipients are identified and stored purely by public key
 
 **Examples:**
 
@@ -431,7 +505,7 @@ envvault keys add [vault-file] [name] [public-key]
 # Add a recipient key to a vault
 envvault keys add .env.vault alice age1abc...
 
-# Add a recipient key with a role label
+# Add a recipient key with a role label (cosmetic only)
 envvault keys add .env.vault db-service age1xyz... --role "database"
 ```
 
@@ -439,19 +513,25 @@ envvault keys add .env.vault db-service age1xyz... --role "database"
 
 ### keys remove
 
-Remove a recipient key from a vault file.
+Remove a recipient from an `age-pubkey` vault and re-encrypt it in place.
 
 **Usage:**
 
 ```bash
-envvault keys remove [vault-file] [name]
+envvault keys remove [vault-file] [public-key]
 ```
+
+**Details:**
+
+- Only works on `age-pubkey` vaults
+- Refuses to remove the last remaining recipient, since that would make the vault permanently undecryptable
+- Updates the vault's [trust](#trust) pin to match the new recipient set
 
 **Examples:**
 
 ```bash
-# Remove a recipient key by name
-envvault keys remove .env.vault alice
+# Remove a recipient by public key
+envvault keys remove .env.vault age1abc...
 ```
 
 ---
@@ -617,8 +697,8 @@ envvault k8s [vault-file]
 
 **Flags:**
 
-- `-n, --name <name>`: Secret name (default: derived from filename)
-- `--namespace <namespace>`: Kubernetes namespace (default: default)
+- `-n, --name <name>`: Secret name (default: `my-app-secret`)
+- `-s, --namespace <namespace>`: Kubernetes namespace (default: `default`)
 - `-t, --type <type>`: Secret type (default: Opaque)
 - `-o, --output <path>`: Save to file
 
@@ -777,7 +857,7 @@ envvault schema init [envfile / vaultfile]
 - `-o, --output <path>`: Schema file to write (default: `.envschema`)
 - `-f, --force`: Overwrite an existing schema file
 - `--optional`: When an input file is provided, generate optional rules instead of marking every key as required
-- `--algorithm <name>`: Override detected algorithm for vault input
+- `-a, --algorithm <name>`: Override detected algorithm for vault input
 
 **Examples:**
 
@@ -812,7 +892,7 @@ envvault schema generate [envfile / vaultfile]
 - `-o, --output <path>`: Schema file to write (default: `.envschema`)
 - `-f, --force`: Overwrite an existing schema file
 - `--optional`: Generate optional rules instead of marking every key as required
-- `--algorithm <name>`: Override detected algorithm for vault input
+- `-a, --algorithm <name>`: Override detected algorithm for vault input
 
 **Examples:**
 
@@ -949,7 +1029,7 @@ Memory lock (mlock)          ✅ OK     supported
 Debug mode                   ✅ OK     DEBUG not set (disabled)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-version: 0.0.3 beta
+version: 0.0.3 beta (5f534d7be898)
 
 🔐 Supported algorithms
   * aes256gcm-argon2id (secure)
@@ -982,7 +1062,7 @@ envvault version
 
 ```bash
 envvault version
-# envvault version 0.0.3 beta
+# envvault version 0.0.3 beta (5f534d7be898)
 ```
 
 ---
@@ -999,8 +1079,8 @@ envvault shamir split [secret]
 
 **Flags:**
 
-- `--shares <number>`: Number of shares (default: 3)
-- `--threshold <number>`: Minimum shares needed (default: 2)
+- `--shares <number>`: Number of shares (default: 5)
+- `--threshold <number>`: Minimum shares needed (default: 3)
 - `--out-dir <path>`: Save shares to directory
 
 **Examples:**
@@ -1076,19 +1156,64 @@ Remove decryption key from OS keystore.
 **Usage:**
 
 ```bash
-envvault logout
+envvault logout [vault-file]
 ```
+
+**Details:**
+
+- If `[vault-file]` is provided, removes only the project-specific key stored for that file.
+- If no file is provided, removes the default fallback key.
 
 **Examples:**
 
 ```bash
-# Remove stored key
+# Remove the default stored key
 envvault logout
+
+# Remove a project-specific stored key
+envvault logout project-a/.env.vault
 ```
 
 ---
 
 ## Zero-Trust Sharing Commands
+
+### trust
+
+Pin a vault's expected algorithm (and, for `age-pubkey` vaults, recipient set) so `unlock`/`export`/`run`/`share` can detect a vault file that's been substituted on disk with differently-encrypted content — even content the victim's own key can decrypt.
+
+`envvault lock` pins this automatically unless run with `--no-trust`.
+
+**Usage:**
+
+```bash
+envvault trust [vault-file]
+```
+
+**Flags:**
+
+- `--show`: Show the current trust pin for this vault path
+- `--clear`: Remove the trust pin for this vault path
+- `--algorithm <name>`: Pre-register an expected algorithm (e.g. in CI, before the vault file exists) instead of pinning from an existing file
+- `--recipient <pubkey>`: Pre-register an expected recipient public key (repeatable; use with `--algorithm`)
+
+**Examples:**
+
+```bash
+# Pin a vault you just verified by other means
+envvault trust .env.vault
+
+# Inspect the current pin
+envvault trust .env.vault --show
+
+# Remove a pin
+envvault trust .env.vault --clear
+
+# Pre-register expected values before the vault file exists (e.g. in CI)
+envvault trust .env.vault --algorithm age-pubkey --recipient age1...
+```
+
+---
 
 ### share
 
@@ -1174,7 +1299,7 @@ envvault receive evlt://eyJhbGciOi... --output | source /dev/stdin
 ## Environment Variables
 
 | Variable | Used by | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `ENVVAULT_PASSWORD` | any command that decrypts/encrypts a password-based vault | Supplies the vault password non-interactively instead of prompting, for CI and scripted use (`docker`, `k8s`, `run`, etc.) |
 | `ENVVAULT_CONFIG` | every command | Overrides the config file path, taking precedence over the default `~/.config/envvault/config.toml`. The `--config` flag takes precedence over this |
 | `ENVVAULT_DEFAULT_PROVIDER` | startup (before any command runs) | Overrides the default encryption algorithm/provider (falls back to `aes256gcm-argon2id` if unset or unrecognized) |
@@ -1248,7 +1373,7 @@ envvault edit .env.vault
 CONTRACTOR_KEY="age1qz..."
 
 # Share only specific variables they need
-envvault share API_KEY WEBHOOK_SECRET --with $CONTRACTOR_KEY
+envvault share .env.vault API_KEY WEBHOOK_SECRET --with $CONTRACTOR_KEY
 
 # They paste the evlt:// string you send them and decrypt locally
 envvault receive evlt://eyJhbGciOi... --import .env.local

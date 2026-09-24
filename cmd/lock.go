@@ -24,9 +24,10 @@ var (
 )
 
 var lockCmd = &cobra.Command{
-	Use:   "lock [file]",
-	Short: "Encrypt an .env file into a .env.vault file",
-	Args:  cobra.ExactArgs(1),
+	Use:     "lock [file]",
+	Short:   "Encrypt an .env file into a .env.vault file",
+	Aliases: []string{"encrypt"},
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		filePath := args[0]
 
