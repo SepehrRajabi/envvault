@@ -14,290 +14,144 @@ PoC, and how it was fixed (with pointers to the relevant source).
   pinning the expected algorithm/recipients at lock time and checking every
   subsequent read against that pin (`crypto/trust.go`, `cmd/trust.go`).
 
-This document consolidates the memory hardening documentation for envvault.
-It covers secure memory locking, usage patterns, command integration, testing, and best practices.
+## Memory Hardening
 
-## Overview
-
-Memory hardening prevents the OS from writing encrypted secrets to disk (swap space/page file) by using `syscall.Mlock()` to lock memory pages in RAM.
+envvault locks decrypted plaintext and passwords in RAM to prevent the OS
+from writing them to swap space (or the page file, on Windows) while a
+command is running. This doesn't make secrets un-leakable — see
+[What Memory Locking Does NOT Protect](#what-memory-locking-does-not-protect)
+— but it closes off one real exposure path: a decrypted vault ending up
+readable from a swap file or hibernation image days later.
 
 ### Key Components
 
-1. **`crypto/memlock.go`** - Core memory locking primitives
-   - `LockedBytes` - Wrapper for locked byte slices
-   - `LockMemory()`/`UnlockMemory()` - Low-level locking
-   - `MmapLockedBytes()`/`MunmapLockedBytes()` - Advanced mmap-based approach
-   - `SecureWipe()` - Overwrite sensitive data before freeing
+1. **`crypto/memlock.go`** — Platform-independent core: the `LockedBytes`
+   wrapper, `NewLockedBytes`/`NewLockedBytesFrom`, and `SecureWipe`
+   (zeroes a byte slice before it's freed/garbage collected).
+2. **`crypto/memlock_unix.go`** (`!windows`) — `LockMemory`/`UnlockMemory`
+   via `syscall.Mlock`/`Munlock`; `MmapLockedBytes`/`MunmapLockedBytes` via
+   `syscall.Mmap` + `Mlock` for allocating memory outside Go's GC entirely.
+3. **`crypto/memlock_windows.go`** (`windows`) — `LockMemory`/`UnlockMemory`
+   via `windows.VirtualLock`/`VirtualUnlock`. `MmapLockedBytes`/
+   `MunmapLockedBytes` are **not implemented on Windows** (return an error);
+   nothing in envvault currently calls them, so this doesn't affect any
+   command — only `LockedBytes` (via `LockMemory`/`UnlockMemory`) is used
+   in practice.
+4. **`crypto/decrypt_secure.go`** — Secure decryption helpers. `DecryptSecure`
+   is the one actually used throughout the codebase: every command that
+   reads a vault (`unlock`, `edit`, `rotate`, `run`, `export`, `docker`,
+   `k8s`, `keys add`/`remove`, `migrate`, `share`, `schema init`/`generate`,
+   `check`, `get`/`set`/`unset`/`rename` via `loadEnvDocument`) follows the
+   same pattern: `getVaultCredentials` → `defer crypto.SecureWipe(password)`
+   → `crypto.DecryptSecure(data, password, provider)` → `defer
+   lockedPlaintext.Unlock()`. `run` additionally uses `GetPasswordLocked` to
+   read a password straight into locked memory instead of a plain `[]byte`.
+   `DecryptWithPassword`, `DecryptWithMetadata`, `BatchDecryptSecure`,
+   `DecryptToString`, and `DecryptAndLock` are exported convenience
+   functions **not currently called by any command** — available library
+   API, not part of the live request path.
+5. **`crypto/keyderive_secure.go`** — `DeriveKeyLocked`, `CompareKeysSecure`,
+   `EncryptWithLockedKey`. **None of these are used anywhere in the
+   codebase today.** `EncryptWithLockedKey` in particular is an unfinished
+   stub — it returns the key bytes unmodified instead of encrypting
+   anything. Don't use it as-is if you're extending envvault; it needs a
+   real implementation first.
 
-2. **`crypto/decrypt_secure.go`** - Secure decryption with memory locking
-   - `DecryptSecure()` - Decrypt to locked memory
-   - `GetPasswordLocked()` - Read password into locked memory
-   - `DecryptWithPassword()` - Combined read + decrypt
-   - `DecryptWithMetadata()` - Decrypt with envelope info
-   - `BatchDecryptSecure()` - Efficiently decrypt multiple files
-
-3. **`crypto/keyderive_secure.go`** - Secure key derivation
-   - `DeriveKeyLocked()` - Derive keys in locked memory
-   - `CompareKeysSecure()` - Constant-time key comparison
-
-## Quick Start
-
-### Basic Usage
+### The Pattern Every Vault-Reading Command Follows
 
 ```go
-locked, err := crypto.DecryptSecure(data, password, provider)
+password, err := getVaultCredentials(data, filePath) // prompt, keyring, or age identity
 if err != nil {
     return err
 }
-defer locked.Unlock()
+defer crypto.SecureWipe(password)
 
-plaintext := locked.Bytes()
-```
-
-### With Password Input
-
-```go
-locked, err := crypto.DecryptWithPassword(data, provider, "Enter password: ")
+lockedPlaintext, err := crypto.DecryptSecure(data, password, provider)
 if err != nil {
-    return err
+    return fmt.Errorf("decryption failed: %w", err)
 }
-defer locked.Unlock()
+defer lockedPlaintext.Unlock()
+
+// use lockedPlaintext.Bytes() — never copy it into a plain []byte or string
+// that outlives this function without wiping it too
 ```
 
-### Multiple Decryptions
+`getVaultCredentials` (`cmd/utils.go`) resolves the password from, in order:
+the OS keyring (if a key was stored via `login`), a Shamir share prompt for
+`shamir-aes256gcm` vaults, or an interactive password prompt — and returns
+an empty byte slice for `age-pubkey` vaults, since those decrypt using the
+identity file instead of a password.
 
-```go
-results, err := crypto.BatchDecryptSecure(vaults, password, provider)
-if err != nil {
-    return err
-}
-defer func() {
-    for _, r := range results {
-        r.Unlock()
-    }
-}()
-```
+### Verifying mlock Support
 
-## Files Created/Modified
-
-### New Files (Memory Hardening Core)
-
-- **`crypto/memlock.go`** - Core memory locking primitives
-- **`crypto/decrypt_secure.go`** - Secure decryption functions
-- **`crypto/keyderive_secure.go`** - Secure key derivation helpers
-
-### Modified Files (Command Integration)
-
-- **`cmd/edit.go`** - Use `DecryptSecure()` for decryption
-- **`cmd/run.go`** - Use `GetPasswordLocked()` and `DecryptSecure()`
-- **`cmd/diff.go`** - Use locked memory for password caching with `LockedBytes`
-
-## Usage Patterns
-
-### Pattern 1: Simple Decryption with Locking
-
-**Before:**
-
-```go
-data, err := os.ReadFile(vaultFile)
-plaintext, err := crypto.Decrypt(data, password, provider)
-fmt.Println(string(plaintext))
-```
-
-**After:**
-
-```go
-data, err := os.ReadFile(vaultFile)
-locked, err := crypto.DecryptSecure(data, password, provider)
-if err != nil {
-    return err
-}
-defer locked.Unlock()
-
-fmt.Println(string(locked.Bytes()))
-```
-
-### Pattern 2: Read Password + Decrypt
-
-**Before:**
-
-```go
-password, err := readPassword("Enter password: ")
-if err != nil {
-    return err
-}
-plaintext, err := crypto.Decrypt(data, password, provider)
-// password is in plaintext memory
-```
-
-**After:**
-
-```go
-locked, err := crypto.DecryptWithPassword(data, provider, "Enter password: ")
-if err != nil {
-    return err
-}
-defer locked.Unlock()
-// password and plaintext are in locked memory
-```
-
-### Pattern 3: Handling Multiple Files
-
-**Before:**
-
-```go
-for _, file := range files {
-    data, _ := os.ReadFile(file)
-    result, _ := crypto.Decrypt(data, password, provider)
-    process(result)
-    crypto.SecureWipe(result) // May not be enough
-}
-```
-
-**After:**
-
-```go
-data := make([][]byte, len(files))
-for i, file := range files {
-    d, _ := os.ReadFile(file)
-    data[i] = d
-}
-
-results, err := crypto.BatchDecryptSecure(data, password, provider)
-if err != nil {
-    return err
-}
-defer func() {
-    for _, r := range results {
-        r.Unlock()
-    }
-}()
-
-for _, result := range results {
-    process(result.Bytes())
-}
-```
-
-## Implementation in Commands
-
-### cmd/edit.go
-
-```go
-func editCommand(filePath string) error {
-    data, _ := os.ReadFile(filePath)
-
-    locked, err := crypto.DecryptWithPassword(data, provider, "Enter vault password: ")
-    if err != nil {
-        return err
-    }
-    defer locked.Unlock()
-
-    env, _ := envfile.Parse(locked.Bytes())
-    crypto.SecureWipe(locked.Bytes())
-
-    encrypted, _ := crypto.Encrypt(modifiedData, password, provider)
-    atomicWrite(filePath, encrypted)
-}
-```
-
-### cmd/run.go
-
-```go
-func runCommand(vaultFile, command string) error {
-    data, _ := os.ReadFile(vaultFile)
-
-    locked, err := crypto.DecryptSecure(data, cachedPassword, provider)
-    if err != nil {
-        locked, err = crypto.DecryptWithPassword(data, provider, "Enter password: ")
-        if err != nil {
-            return err
-        }
-    }
-    defer locked.Unlock()
-
-    env := envfile.Parse(locked.Bytes())
-    // ... execute command with env
-}
-```
-
-### cmd/check.go
-
-```go
-func checkCommand(vaultFile string) error {
-    data, _ := os.ReadFile(vaultFile)
-
-    decrypted, err := crypto.DecryptWithMetadata(data, password, provider)
-    if err != nil {
-        return err
-    }
-    defer decrypted.Close()
-
-    fmt.Printf("Algorithm: %s\n", decrypted.Header.Algorithm)
-    fmt.Printf("Commit: %v\n", decrypted.Header.Commit)
-}
-```
-
-## Testing
-
-### Verify mlock is working
+`envvault doctor` includes a `Memory lock (mlock)` check that round-trips a
+32-byte `LockedBytes` allocation — this is the quickest way to confirm
+memory locking actually works in your environment, on any platform:
 
 ```bash
-strace -e mlock,munlock go run main.go edit prod.env.vault
+envvault doctor
+```
+
+For deeper inspection:
+
+```bash
+# Linux: confirm the syscalls fire and check locked memory accounting
+strace -e mlock,munlock envvault edit prod.env.vault
 cat /proc/$(pidof envvault)/status | grep VmLck
+
+# Any Unix: test behavior under a tight mlock ulimit
+ulimit -l 64 && envvault edit prod.env.vault
 ```
 
-### Test with limited memory
-
-```bash
-ulimit -v 100000
-go run main.go edit prod.env.vault
-```
+Windows has no direct equivalent to `strace`/`/proc`; `envvault doctor` is
+the primary way to confirm `VirtualLock` is working there.
 
 ## Performance Considerations
 
-1. **mlock Limits**: On many systems, the default ulimit for locked memory is 64KB.
-   - Increase with: `ulimit -l unlimited`
-   - Or set in `/etc/security/limits.conf`
-
-2. **GC Pressure**: Locking memory can increase GC pressure.
-   - Use `MmapLockedBytes()` for very sensitive data that must never be copied
-   - Regular `LockedBytes` is fine for most use cases
-
-3. **Performance Impact**:
-   - mlock adds minimal overhead after allocation
-   - Key derivation (Argon2id) is already time-consuming
-   - Memory locking is negligible compared to cryptographic operations
+1. **mlock limits**: on many Unix systems the default ulimit for locked
+   memory is small (often 64KB). Increase it with `ulimit -l unlimited` or
+   via `/etc/security/limits.conf` if you're locking larger payloads.
+2. **GC pressure**: locking memory can increase GC pressure slightly.
+   Regular `LockedBytes` (via `DecryptSecure`) is fine for the vault sizes
+   envvault deals with; `MmapLockedBytes` exists for allocating outside the
+   GC entirely, but nothing in envvault currently uses it.
+3. **Overall cost**: `mlock`/`VirtualLock` add negligible overhead compared
+   to the Argon2id key derivation `lock`/`unlock` already perform.
 
 ## Security Notes
 
 ### What Memory Locking Protects
 
-✅ Prevents OS from swapping secrets to disk  
-✅ Protects against cold-boot attacks  
-✅ Guards against physical memory dumps during operation  
+✅ Prevents the OS from swapping decrypted secrets to disk (swap/page file)
+✅ Reduces exposure to cold-boot attacks
+✅ Reduces exposure from physical memory dumps taken during operation
 
 ### What Memory Locking Does NOT Protect
 
-❌ Does not protect against privileged code execution  
-❌ Does not protect against kernel-level memory access  
-❌ Does not prevent timing attacks  
-❌ Does not protect unencrypted copies (use SecureWipe)  
+❌ Does not protect against privileged code execution on the same machine
+❌ Does not protect against kernel-level memory access
+❌ Does not prevent timing attacks
+❌ Does not protect unencrypted copies you make yourself — always
+  `SecureWipe` any temporary plaintext copy, and avoid `string(secret)`
+  conversions (Go strings are immutable and can't be wiped)
 
-### Best Practices
+### Best Practices (for code touching secrets)
 
-1. **Always unlock when done**: Use `defer locked.Unlock()`
-2. **Use SecureWipe**: Clear temporary plaintext copies with `SecureWipe()`
-3. **Avoid strings**: Strings are immutable; use `[]byte` for secrets
-4. **Passwords in functions**: Let passwords be garbage collected quickly
-5. **Check limits**: Verify ulimit allows mlock
-6. **Error handling**: Handle mlock errors gracefully
-
-## Error Handling
-
-Most mlock failures are non-fatal:
-
-```bash
-ulimit -l 32768 && envvault run .env.vault -- command
-```
-
-Some systems may require root for mlock - can still run with warnings.
+1. **Always unlock what you lock**: pair every `DecryptSecure`/
+   `NewLockedBytes`/`GetPasswordLocked` call with `defer x.Unlock()`.
+2. **`SecureWipe` plain `[]byte` copies**: anything decrypted or read as a
+   password that isn't already a `LockedBytes`.
+3. **Avoid strings for secrets**: they're immutable and can't be wiped; use
+   `[]byte`.
+4. **Let credentials go out of scope quickly**: don't hold a password in a
+   long-lived variable or struct field longer than necessary.
+5. **Be aware mlock failures are currently fatal, not degraded**: if
+   `LockMemory` fails (e.g. under a restrictive `ulimit -l`, or on a
+   platform/container without the privilege), `NewLockedBytesFrom` returns
+   an error that propagates all the way up through `DecryptSecure` — every
+   vault-reading command fails outright rather than falling back to
+   unlocked memory. Run `envvault doctor` beforehand to catch this proactively
+   (its `Memory lock (mlock)` check surfaces the same failure without
+   touching a real vault); if you're changing this behavior, decide
+   deliberately whether a fallback to unlocked memory is an acceptable
+   trade-off for availability before adding one.
