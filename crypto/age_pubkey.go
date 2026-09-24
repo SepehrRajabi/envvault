@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"filippo.io/age"
+
+	"github.com/SepehrRajabi/envvault/homedir"
 )
 
 type AgePubKeyProvider struct {
@@ -95,7 +97,7 @@ func (a *AgePubKeyProvider) loadIdentities() ([]age.Identity, error) {
 		return []age.Identity{id}, nil
 	}
 
-	home, err := os.UserHomeDir()
+	home, err := homedir.Dir()
 	if err != nil {
 		return nil, fmt.Errorf("finding home directory: %w", err)
 	}

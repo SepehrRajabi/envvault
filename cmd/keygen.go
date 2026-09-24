@@ -7,6 +7,8 @@ import (
 
 	"filippo.io/age"
 	"github.com/spf13/cobra"
+
+	"github.com/SepehrRajabi/envvault/homedir"
 )
 
 var keygenOutput string
@@ -28,7 +30,7 @@ var keygenCmd = &cobra.Command{
 		// 2. Determine output path
 		outPath := keygenOutput
 		if outPath == "" {
-			home, err := os.UserHomeDir()
+			home, err := homedir.Dir()
 			if err != nil {
 				return fmt.Errorf("finding home directory: %w", err)
 			}

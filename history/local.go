@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+
+	"github.com/SepehrRajabi/envvault/homedir"
 )
 
 const (
@@ -27,7 +29,7 @@ func NewLocalBackend() Backend {
 }
 
 func localHistoryPath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := homedir.Dir()
 	if err != nil {
 		return "", fmt.Errorf("finding home directory: %w", err)
 	}

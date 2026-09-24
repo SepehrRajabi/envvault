@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+
+	"github.com/SepehrRajabi/envvault/homedir"
 )
 
 // TrustRecord pins the metadata a vault file is expected to carry: the
@@ -27,7 +29,7 @@ type trustStore struct {
 
 // TrustStorePath returns the location of the local trust database.
 func TrustStorePath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := homedir.Dir()
 	if err != nil {
 		return "", fmt.Errorf("finding home directory: %w", err)
 	}

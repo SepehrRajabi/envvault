@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+	"github.com/SepehrRajabi/envvault/homedir"
 )
 
 type Config struct {
@@ -88,7 +89,7 @@ func GetConfigPath() (string, error) {
 		return envPath, nil
 	}
 
-	home, err := os.UserHomeDir()
+	home, err := homedir.Dir()
 	if err != nil {
 		return "", err
 	}

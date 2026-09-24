@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/homedir"
 	"github.com/SepehrRajabi/envvault/keyring"
 )
 
@@ -110,7 +111,7 @@ func checkAgeIdentity() doctorCheck {
 		return doctorCheck{Name: "Age identity", OK: true, Detail: "set via AGE_IDENTITY"}
 	}
 
-	home, err := os.UserHomeDir()
+	home, err := homedir.Dir()
 	if err != nil {
 		return doctorCheck{Name: "Age identity", Warn: true, Detail: "could not determine home directory"}
 	}
