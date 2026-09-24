@@ -72,7 +72,7 @@ func runDoctor() {
 	}
 	fmt.Println(strings.Repeat("─", 100))
 
-	fmt.Printf("\nversion: %s\n", fullVersion())
+	fmt.Printf("\nversion: %s (%s)\n", fullVersion(), commitHash())
 
 	fmt.Println("\n🔐 Supported algorithms")
 	for _, info := range crypto.ListProviders(false) {
