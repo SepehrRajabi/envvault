@@ -17,7 +17,7 @@ I am a (somewhat busy) student at the moment, so i will do my best reviewing PRs
 
 **Prerequisites:**
 
-* [Go](https://go.dev/dl/) (version 1.26 or higher)
+* [Go](https://go.dev/dl/) (version 1.27.1 or higher, per `go.mod`)
 * Git
 
 **Setup:**
@@ -50,7 +50,7 @@ I am a (somewhat busy) student at the moment, so i will do my best reviewing PRs
 2. **Make your changes:** Write your code and update/add tests.
 3. **Test thoroughly:** Ensure all tests pass and run `go vet ./...`.
 4. **Commit:** I encourage using [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat: ...`, `fix: ...`, `docs: ...`).
-5. **Submit a Pull Request:** Open a PR against the `main` branch. Fill out the PR template clearly explaining *what* changed and *why*.
+5. **Submit a Pull Request:** Open a PR against the `main` branch with a description explaining *what* changed and *why*.
 
 ***
 
@@ -87,8 +87,8 @@ envvault is designed to be extensible. If you want to add a new encryption algor
     }
     ```
 
-3. Register your algorithm in the main CLI command router so it becomes available via the `algorithms` command.
-4. **Crucial:** Add test vectors in `crypto/kms_test.go` to verify encryption/decryption cycles.
+3. Register your algorithm from an `init()` function in your new file, by calling `crypto.Register(p)` (see `crypto/registry.go`). This is a self-registering pattern — every existing provider registers itself the same way (e.g. `crypto/aesgcm-argon2id.go`'s `init()`), so nothing in `cmd/` needs to change; the `algorithms` command and `crypto.GetProvider`/`crypto.Default` pick it up automatically once it's registered. `AlgorithmID()` must be lowercase alphanumeric-and-hyphens, max 32 chars, and not already registered, or `Register` returns an error.
+4. **Crucial:** Add tests that round-trip `Encrypt`/`Decrypt` (and cover wrong-password/corrupted-payload failure cases). There's no fixed per-provider test file convention yet in this codebase — a new `crypto/<algorithm>_test.go` alongside your provider file is the natural place.
 
 ***
 
@@ -97,7 +97,7 @@ envvault is designed to be extensible. If you want to add a new encryption algor
 * **Security First:** Because envvault handles secrets, never log plaintext values, keys, or environment variables. Always sanitize outputs in logs and audit trails.
 * **Error Handling:** Handle errors explicitly. Do not use `panic()` in the CLI flow; return errors up the stack so the CLI can display them cleanly to the user.
 * **Formatting:** Run `gofmt -w .` and `goimports -w .` before committing.
-* **Linting:** Ensure your code passes `golangci-lint run`.
+* **Linting:** Run `go vet ./...` before committing. Note that CI (`.github/workflows/go.yml`) currently only runs `go build`/`go test`, not `go vet` or any linter — so treat this as a local habit rather than something a failing check will catch for you. `golangci-lint run` is encouraged for extra coverage, but there's no `.golangci.yml` config in the repo yet; expect its defaults to flag things this project doesn't otherwise enforce.
 * **No CGO (if possible):** To keep envvault a single, static, cross-platform binary, avoid introducing CGO dependencies unless absolutely necessary (e.g., for specific OS keychain features).
 
 ***
