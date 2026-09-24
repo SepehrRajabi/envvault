@@ -122,16 +122,16 @@ the primary way to confirm `VirtualLock` is working there.
 
 ### What Memory Locking Protects
 
-✅ Prevents the OS from swapping decrypted secrets to disk (swap/page file)
-✅ Reduces exposure to cold-boot attacks
-✅ Reduces exposure from physical memory dumps taken during operation
+- ✅ Prevents the OS from swapping decrypted secrets to disk (swap/page file)
+- ✅ Reduces exposure to cold-boot attacks
+- ✅ Reduces exposure from physical memory dumps taken during operation
 
 ### What Memory Locking Does NOT Protect
 
-❌ Does not protect against privileged code execution on the same machine
-❌ Does not protect against kernel-level memory access
-❌ Does not prevent timing attacks
-❌ Does not protect unencrypted copies you make yourself — always
+- ❌ Does not protect against privileged code execution on the same machine
+- ❌ Does not protect against kernel-level memory access
+- ❌ Does not prevent timing attacks
+- ❌ Does not protect unencrypted copies you make yourself — always
   `SecureWipe` any temporary plaintext copy, and avoid `string(secret)`
   conversions (Go strings are immutable and can't be wiped)
 
