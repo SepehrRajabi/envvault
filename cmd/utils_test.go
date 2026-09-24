@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"filippo.io/age"
+
 	"github.com/SepehrRajabi/envvault/crypto"
 )
 
@@ -22,6 +24,27 @@ func newTestVault(t *testing.T) []byte {
 		t.Fatalf("Encrypt: %v", err)
 	}
 	return vault
+}
+
+// newTestAgePubkeyVault builds a valid age-pubkey vault encrypted for a
+// freshly generated recipient, and points AGE_IDENTITY at the matching
+// private key so tests can decrypt it without prompting. Returns the vault
+// bytes and the recipient's public key string.
+func newTestAgePubkeyVault(t *testing.T) ([]byte, string) {
+	t.Helper()
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatalf("GenerateX25519Identity: %v", err)
+	}
+	pubKey := identity.Recipient().String()
+	t.Setenv("AGE_IDENTITY", identity.String())
+
+	provider := &crypto.AgePubKeyProvider{ID: "age-pubkey"}
+	vault, err := crypto.Encrypt([]byte("secret=very_secret\n"), []byte(pubKey), provider)
+	if err != nil {
+		t.Fatalf("Encrypt: %v", err)
+	}
+	return vault, pubKey
 }
 
 func TestEnforceTrustBlocksAlgorithmSubstitution(t *testing.T) {
