@@ -54,7 +54,7 @@ func Parse(content []byte) ([]EnvVar, error) {
 		}
 		EnvVars = append(EnvVars, EnvVar{
 			Key:   StripExportPrefix(strings.TrimSpace(parts[0])),
-			Value: strings.TrimSpace(parts[1]),
+			Value: unquote(strings.TrimSpace(parts[1])),
 		})
 	}
 
@@ -73,11 +73,15 @@ func StripExportPrefix(key string) string {
 	return strings.TrimSpace(rest)
 }
 
-func unqoute(value string) string {
-	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+// unquote strips a single layer of matching surrounding double or single
+// quotes from a .env value (e.g. `"hello world"` -> `hello world`), as
+// written by formatEnvFile/FormatDiff-style .env writers for values
+// containing spaces or special characters.
+func unquote(value string) string {
+	if len(value) >= 2 && strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
 		return strings.Trim(value, "\"")
 	}
-	if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+	if len(value) >= 2 && strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
 		return strings.Trim(value, "'")
 	}
 	return value

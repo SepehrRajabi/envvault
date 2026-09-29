@@ -156,7 +156,7 @@ func (s *Schema) ValidateWithOptions(envVars []EnvVar, opts ValidateOptions) []s
 			continue
 		}
 
-		for _, err := range validateRule(rule, unqoute(strings.TrimSpace(value))) {
+		for _, err := range validateRule(rule, unquote(strings.TrimSpace(value))) {
 			errors = append(errors, err)
 		}
 	}
@@ -240,7 +240,7 @@ func splitEnumValues(value string) []string {
 	parts := strings.Split(value, ",")
 	values := make([]string, 0, len(parts))
 	for _, part := range parts {
-		part = unqoute(strings.TrimSpace(part))
+		part = unquote(strings.TrimSpace(part))
 		if part != "" {
 			values = append(values, part)
 		}
@@ -455,7 +455,7 @@ func GenerateSchema(envVars []EnvVar, required bool) string {
 // InferSchemaType guesses a schema type token (bool, uint, int, float, or
 // str) for value, in that priority order.
 func InferSchemaType(value string) string {
-	value = unqoute(strings.TrimSpace(value))
+	value = unquote(strings.TrimSpace(value))
 	if value == "" {
 		return "str"
 	}
