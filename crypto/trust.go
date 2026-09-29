@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,15 +14,31 @@ import (
 )
 
 // TrustRecord pins the metadata a vault file is expected to carry: the
-// algorithm it was locked with and, for public-key algorithms, the set of
-// recipients it was encrypted for. It is recorded locally (outside the
-// vault's own directory) when a vault is first locked or explicitly trusted,
-// and checked again on every subsequent unlock/export/run so that swapping
-// the vault file on disk for one encrypted under a different algorithm or
-// recipient set is detected instead of silently accepted.
+// algorithm it was locked with, for public-key algorithms the set of
+// recipients it was encrypted for, and a checksum of the vault's exact
+// ciphertext bytes. It is recorded locally (outside the vault's own
+// directory) when a vault is first locked or explicitly trusted, and
+// checked again on every subsequent unlock/export/run so that swapping the
+// vault file on disk — even for one encrypted under the same algorithm and
+// the same (public, non-secret) recipient set, which anyone can produce
+// without the vault owner's key — is detected instead of silently accepted.
+//
+// Checksum is refreshed every time the local user performs a legitimate
+// content-changing operation (lock, rotate, edit, migrate, keys add/remove)
+// so only *out-of-band* substitution (e.g. someone else pushing a different
+// vault file to a shared repo) trips it.
 type TrustRecord struct {
 	Algorithm  string   `json:"algorithm"`
 	Recipients []string `json:"recipients,omitempty"`
+	Checksum   string   `json:"checksum,omitempty"`
+}
+
+// HashVaultChecksum returns the hex-encoded SHA-256 checksum of raw vault
+// file bytes (the full envelope: header + ciphertext), for pinning a
+// vault's exact content in a TrustRecord.
+func HashVaultChecksum(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 type trustStore struct {
@@ -176,14 +194,15 @@ func ClearTrust(filePath string) error {
 // failure, so first-time use of a vault still works.
 var ErrUntrustedVault = fmt.Errorf("no trust record for this vault path")
 
-// CheckTrust verifies that a vault's actual algorithm and recipients (as
-// read from its envelope header) match what was previously pinned for its
-// path via SetTrust. This is the core defense against vault substitution:
-// an attacker who overwrites a vault file with content encrypted under a
-// different algorithm or recipient set (even one that decrypts cleanly
-// under the victim's own key) is caught here, before any credential prompt
-// or decryption is attempted.
-func CheckTrust(filePath string, hdr *envelopeHeader) error {
+// CheckTrust verifies that a vault's actual algorithm, recipients (as read
+// from its envelope header), and exact content match what was previously
+// pinned for its path via SetTrust. This is the core defense against vault
+// substitution: an attacker who overwrites a vault file — whether with
+// content encrypted under a different algorithm/recipient set, or with
+// different content re-encrypted under the *same* algorithm and (public,
+// non-secret) recipients — is caught here, before any credential prompt or
+// decryption is attempted.
+func CheckTrust(filePath string, data []byte, hdr *envelopeHeader) error {
 	record, ok, err := GetTrust(filePath)
 	if err != nil {
 		return err
@@ -206,6 +225,15 @@ func CheckTrust(filePath string, hdr *envelopeHeader) error {
 			"vault %s was pinned for recipients %v but now has recipients %v — "+
 				"the file may have been substituted; run `envvault trust %s --clear` if this change is expected",
 			filePath, record.Recipients, actual, filePath,
+		)
+	}
+
+	if record.Checksum != "" && !checksumMatches(data, record.Checksum) {
+		return fmt.Errorf(
+			"vault %s does not match its pinned content — "+
+				"the file may have been substituted with different data encrypted under the same algorithm/recipients; "+
+				"run `envvault trust %s --clear` if this change is expected",
+			filePath, filePath,
 		)
 	}
 

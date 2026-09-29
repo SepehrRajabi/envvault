@@ -116,7 +116,7 @@ func enforceTrust(filePath string, data []byte) error {
 		return fmt.Errorf("verifying %s: %w", filePath, err)
 	}
 
-	if err := crypto.CheckTrust(filePath, hdr); err != nil {
+	if err := crypto.CheckTrust(filePath, data, hdr); err != nil {
 		if err == crypto.ErrUntrustedVault {
 			fmt.Fprintf(os.Stderr,
 				"⚠️  No trust record for %s — run `envvault trust %s` after verifying its contents to pin it and detect future substitution.\n",

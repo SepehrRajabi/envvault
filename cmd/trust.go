@@ -88,6 +88,7 @@ rejected instead of silently accepted.
 		record := crypto.TrustRecord{
 			Algorithm:  hdr.Algorithm,
 			Recipients: crypto.RecipientsFromHeader(hdr),
+			Checksum:   crypto.HashVaultChecksum(data),
 		}
 		if err := crypto.SetTrust(filePath, record); err != nil {
 			return err

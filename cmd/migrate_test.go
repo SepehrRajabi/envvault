@@ -63,6 +63,52 @@ func TestMigrateCommandChangesAlgorithmInPlace(t *testing.T) {
 	}
 }
 
+func TestMigrateCommandRefreshesTrustPin(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ENVVAULT_PASSWORD", "correct-horse-battery-staple-42!")
+	resetMigrateFlags()
+	t.Cleanup(resetMigrateFlags)
+
+	provider, err := crypto.GetProvider("aes256gcm-argon2id")
+	if err != nil {
+		t.Fatalf("GetProvider: %v", err)
+	}
+	vault, err := crypto.Encrypt([]byte("KEY=value\n"), []byte("correct-horse-battery-staple-42!"), provider)
+	if err != nil {
+		t.Fatalf("Encrypt: %v", err)
+	}
+
+	dir := t.TempDir()
+	vaultPath := filepath.Join(dir, "v.env.vault")
+	if err := os.WriteFile(vaultPath, vault, 0600); err != nil {
+		t.Fatalf("write vault: %v", err)
+	}
+	if err := crypto.SetTrust(vaultPath, crypto.TrustRecord{
+		Algorithm: "aes256gcm-argon2id",
+		Checksum:  crypto.HashVaultChecksum(vault),
+	}); err != nil {
+		t.Fatalf("SetTrust: %v", err)
+	}
+
+	// migrate changes the algorithm itself. Without refreshing the pin,
+	// this would strand the trust record with a stale algorithm and
+	// checksum, making enforceTrust falsely block every subsequent
+	// unlock/export/run with an "algorithm mismatch" error.
+	to = "chacha20poly1305"
+
+	if err := migrateCmd.RunE(migrateCmd, []string{vaultPath}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	after, err := os.ReadFile(vaultPath)
+	if err != nil {
+		t.Fatalf("read vault after migrate: %v", err)
+	}
+	if err := enforceTrust(vaultPath, after); err != nil {
+		t.Fatalf("expected trust pin to be refreshed after migrate, got %v", err)
+	}
+}
+
 func TestMigrateCommandOutputFlagLeavesOriginalUntouched(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ENVVAULT_PASSWORD", "correct-horse-battery-staple-42!")

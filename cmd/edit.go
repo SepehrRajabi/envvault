@@ -33,6 +33,10 @@ var editCmd = &cobra.Command{
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
+		if err := enforceTrust(filePath, data); err != nil {
+			return err
+		}
+
 		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
 		password, err := getVaultCredentials(data, filePath)
 		if err != nil {
@@ -153,6 +157,19 @@ var editCmd = &cobra.Command{
 		// 14. Atomically write back to the vault file
 		if err := atomicWrite(filePath, encrypted); err != nil {
 			return fmt.Errorf("writing vault: %w", err)
+		}
+
+		// 15. Refresh the trust pin to match the freshly-edited content,
+		// otherwise the next unlock/export/run would flag this legitimate
+		// change as a substitution.
+		record := crypto.TrustRecord{Algorithm: p.AlgorithmID(), Checksum: crypto.HashVaultChecksum(encrypted)}
+		if p.AlgorithmID() == "age-pubkey" {
+			if newHdr, err := crypto.Verify(encrypted); err == nil {
+				record.Recipients = crypto.RecipientsFromHeader(newHdr)
+			}
+		}
+		if err := crypto.SetTrust(filePath, record); err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️  Warning: failed to update trust pin for %s: %v\n", filePath, err)
 		}
 
 		fmt.Printf("🔒 Saved changes to %s\n", filePath)

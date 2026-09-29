@@ -129,6 +129,18 @@ See `crypto/trust.go`, `cmd/trust.go`, and the `enforceTrust` calls in `cmd/unlo
 
 Not addressed by this fix: a full cryptographic signature over the envelope (e.g. Ed25519) would be a stronger, defense-in-depth follow-up, since the current pin is only as good as the local trust store's integrity and isn't portable across machines the way a signature would be.
 
+## Follow-up: pinning content, not just algorithm/recipients (fixed)
+
+The original fix above still left a gap for `age-pubkey` vaults specifically: encrypting to a recipient only needs their *public* key, which isn't secret. An attacker with write access to the vault path who already knows the legitimate recipient set (visible in the vault's own header) could re-encrypt arbitrary different content for those same recipients under the same algorithm — passing both the algorithm check and the recipient check, since neither one is affected by *what* was encrypted, only *how* and *for whom*.
+
+`TrustRecord` now also pins a SHA-256 checksum of the vault's exact ciphertext bytes (`crypto.HashVaultChecksum`), checked by `CheckTrust` alongside algorithm and recipients. Any substitution — same algorithm, same recipients, different content — is now caught.
+
+Since the checksum pins *exact* content, every command that legitimately re-encrypts a vault in place now refreshes the pin after writing: `lock`, `keys add`/`remove` (already did, extended with the checksum), plus `rotate`, `edit`, and `migrate` (which previously didn't participate in trust at all — this fix also closes that gap, since without it a legitimate `rotate`/`edit`/`migrate` would strand a stale pin and cause the next `unlock`/`export`/`run` to falsely report substitution).
+
+A record with no pinned checksum (created before this fix, or via `envvault trust --algorithm ... --recipient ...` pre-registration before the vault file exists) skips the content check rather than treating an empty checksum as a mismatch.
+
+See `crypto/trust.go` (`TrustRecord.Checksum`, `HashVaultChecksum`, `CheckTrust`) and the trust-pin refresh in `cmd/rotate.go`, `cmd/edit.go`, `cmd/migrate.go`.
+
 ## Acknowledgments
 
 Thanks to [Hu13er](https://github.com/Hu13er/) for finding and responsibly reporting this vulnerability.

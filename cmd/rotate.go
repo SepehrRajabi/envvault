@@ -26,6 +26,10 @@ var rotateCmd = &cobra.Command{
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
+		if err := enforceTrust(filePath, data); err != nil {
+			return err
+		}
+
 		// 2. Get the current credentials
 		oldPassword, err := getVaultCredentials(data, filePath)
 		if err != nil {
@@ -84,6 +88,20 @@ var rotateCmd = &cobra.Command{
 		// 8. Atomically overwrite the original file
 		if err := atomicWrite(filePath, newCiphertext); err != nil {
 			return fmt.Errorf("writing new vault file: %w", err)
+		}
+
+		// 9. Refresh the trust pin to match the freshly-rotated content,
+		// otherwise the next unlock/export/run would flag this legitimate
+		// change as a substitution.
+		if newHdr, err := crypto.Verify(newCiphertext); err == nil {
+			record := crypto.TrustRecord{
+				Algorithm:  newHdr.Algorithm,
+				Recipients: crypto.RecipientsFromHeader(newHdr),
+				Checksum:   crypto.HashVaultChecksum(newCiphertext),
+			}
+			if err := crypto.SetTrust(filePath, record); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Warning: failed to update trust pin for %s: %v\n", filePath, err)
+			}
 		}
 
 		fmt.Printf("✅ Password rotated successfully for %s\n", filePath)

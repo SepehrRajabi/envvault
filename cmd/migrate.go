@@ -29,6 +29,10 @@ var migrateCmd = &cobra.Command{
 			return fmt.Errorf("reading %s: %w", filePath, err)
 		}
 
+		if err := enforceTrust(filePath, data); err != nil {
+			return err
+		}
+
 		// 2. Get credentials (handles password prompt OR age-pubkey automatically)
 		password, err := getVaultCredentials(data, filePath)
 		if err != nil {
@@ -68,22 +72,34 @@ var migrateCmd = &cobra.Command{
 		}
 
 		// 5. Write back to file
+		outPath := filePath
 		if output != "" {
-			err := atomicWrite(output, encrypted)
-			if err != nil {
-				return fmt.Errorf("writing %s: %w", output, err)
+			outPath = output
+		}
+		if err := atomicWrite(outPath, encrypted); err != nil {
+			return fmt.Errorf("writing %s: %w", outPath, err)
+		}
+
+		// 6. Refresh the trust pin to match the migrated content (new
+		// algorithm and possibly new path), otherwise the next
+		// unlock/export/run would flag this legitimate change as a
+		// substitution.
+		if newHdr, err := crypto.Verify(encrypted); err == nil {
+			record := crypto.TrustRecord{
+				Algorithm:  newHdr.Algorithm,
+				Recipients: crypto.RecipientsFromHeader(newHdr),
+				Checksum:   crypto.HashVaultChecksum(encrypted),
 			}
+			if err := crypto.SetTrust(outPath, record); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Warning: failed to update trust pin for %s: %v\n", outPath, err)
+			}
+		}
+
+		if output != "" {
 			fmt.Printf("Successfully migrated %s to %s with new encryption algorithm\n", filePath, output)
-
-			_ = history.Record("Migrate", filePath, to)
-
-			return nil
+		} else {
+			fmt.Printf("Successfully migrated %s to new encryption algorithm\n", filePath)
 		}
-		if err := atomicWrite(filePath, encrypted); err != nil {
-			return fmt.Errorf("writing %s: %w", filePath, err)
-		}
-
-		fmt.Printf("Successfully migrated %s to new encryption algorithm\n", filePath)
 
 		_ = history.Record("Migrate", filePath, to)
 

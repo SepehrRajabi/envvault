@@ -13,6 +13,12 @@ PoC, and how it was fixed (with pointers to the relevant source).
   bound a vault to the specific `lock` operation that produced it. Fixed by
   pinning the expected algorithm/recipients at lock time and checking every
   subsequent read against that pin (`crypto/trust.go`, `cmd/trust.go`).
+  Follow-up: since encrypting to an `age-pubkey` recipient only needs their
+  (non-secret) public key, algorithm/recipient pinning alone didn't stop an
+  attacker from re-encrypting different content for the same recipients.
+  The pin now also covers a checksum of the vault's exact ciphertext, kept
+  in sync by every command that legitimately re-encrypts a vault in place
+  (`lock`, `keys add`/`remove`, `rotate`, `edit`, `migrate`).
 
 ## Memory Hardening
 

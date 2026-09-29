@@ -64,7 +64,7 @@ var keysAddCmd = &cobra.Command{
 			return fmt.Errorf("writing %s: %w", filePath, err)
 		}
 
-		if err := crypto.SetTrust(filePath, crypto.TrustRecord{Algorithm: "age-pubkey", Recipients: recipients}); err != nil {
+		if err := crypto.SetTrust(filePath, crypto.TrustRecord{Algorithm: "age-pubkey", Recipients: recipients, Checksum: crypto.HashVaultChecksum(encrypted)}); err != nil {
 			fmt.Fprintf(os.Stderr, "⚠️  Warning: failed to update trust pin for %s: %v\n", filePath, err)
 		}
 
@@ -135,7 +135,7 @@ var keysRemoveCmd = &cobra.Command{
 			return fmt.Errorf("writing %s: %w", filePath, err)
 		}
 
-		if err := crypto.SetTrust(filePath, crypto.TrustRecord{Algorithm: "age-pubkey", Recipients: remaining}); err != nil {
+		if err := crypto.SetTrust(filePath, crypto.TrustRecord{Algorithm: "age-pubkey", Recipients: remaining, Checksum: crypto.HashVaultChecksum(encrypted)}); err != nil {
 			fmt.Fprintf(os.Stderr, "⚠️  Warning: failed to update trust pin for %s: %v\n", filePath, err)
 		}
 

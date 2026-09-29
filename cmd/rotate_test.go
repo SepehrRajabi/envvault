@@ -47,6 +47,50 @@ func TestRotateCommandRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRotateCommandRefreshesTrustPin(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ENVVAULT_PASSWORD", "correct-horse-battery-staple-42!")
+	algorithm = ""
+	rotateAllowWeak = false
+	t.Cleanup(func() { rotateAllowWeak = false })
+
+	provider, err := crypto.GetProvider("aes256gcm-argon2id")
+	if err != nil {
+		t.Fatalf("GetProvider: %v", err)
+	}
+	vault, err := crypto.Encrypt([]byte("KEY=value\n"), []byte("correct-horse-battery-staple-42!"), provider)
+	if err != nil {
+		t.Fatalf("Encrypt: %v", err)
+	}
+
+	dir := t.TempDir()
+	vaultPath := filepath.Join(dir, "v.env.vault")
+	if err := os.WriteFile(vaultPath, vault, 0600); err != nil {
+		t.Fatalf("write vault: %v", err)
+	}
+	if err := crypto.SetTrust(vaultPath, crypto.TrustRecord{
+		Algorithm: "aes256gcm-argon2id",
+		Checksum:  crypto.HashVaultChecksum(vault),
+	}); err != nil {
+		t.Fatalf("SetTrust: %v", err)
+	}
+
+	if err := rotateCmd.RunE(rotateCmd, []string{vaultPath}); err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+
+	// Rotate necessarily changes the ciphertext (new salt/nonce). A stale
+	// content pin would make the very next enforceTrust call (unlock,
+	// export, run, ...) falsely report substitution.
+	after, err := os.ReadFile(vaultPath)
+	if err != nil {
+		t.Fatalf("read vault after rotate: %v", err)
+	}
+	if err := enforceTrust(vaultPath, after); err != nil {
+		t.Fatalf("expected trust pin to be refreshed after rotate, got %v", err)
+	}
+}
+
 func TestRotateCommandRejectsWeakNewPassword(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ENVVAULT_PASSWORD", "abc123")

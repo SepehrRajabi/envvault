@@ -129,7 +129,7 @@ var lockCmd = &cobra.Command{
 		}
 
 		if !noTrust {
-			trustRecord := crypto.TrustRecord{Algorithm: algID}
+			trustRecord := crypto.TrustRecord{Algorithm: algID, Checksum: crypto.HashVaultChecksum(encrypted)}
 			if algID == "age-pubkey" {
 				trustRecord.Recipients = append(trustRecord.Recipients, recipient...)
 			}

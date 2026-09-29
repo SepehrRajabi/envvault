@@ -85,6 +85,43 @@ func TestEnforceTrustAllowsMatchingPin(t *testing.T) {
 	}
 }
 
+func TestEnforceTrustBlocksContentSubstitutionUnderSameAlgorithmAndRecipients(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	// Two age-pubkey vaults for the same recipient, but with different
+	// content. Since public-key encryption needs no secret, an attacker
+	// who knows the recipient's (non-secret) public key can produce
+	// substituted2 without ever having access to the victim's private key.
+	vault1, pubKey := newTestAgePubkeyVault(t)
+	provider := &crypto.AgePubKeyProvider{ID: "age-pubkey"}
+	vault2, err := crypto.Encrypt([]byte("secret=attacker_controlled\n"), []byte(pubKey), provider)
+	if err != nil {
+		t.Fatalf("Encrypt: %v", err)
+	}
+
+	vaultPath := filepath.Join(t.TempDir(), "v.env.vault")
+	if err := os.WriteFile(vaultPath, vault1, 0600); err != nil {
+		t.Fatalf("write vault: %v", err)
+	}
+	if err := crypto.SetTrust(vaultPath, crypto.TrustRecord{
+		Algorithm: "age-pubkey",
+		Checksum:  crypto.HashVaultChecksum(vault1),
+	}); err != nil {
+		t.Fatalf("SetTrust: %v", err)
+	}
+
+	// Algorithm and recipients still match, so only the content pin
+	// catches the substitution.
+	if err := enforceTrust(vaultPath, vault2); err == nil {
+		t.Fatal("expected enforceTrust to block content substitution under matching algorithm/recipients")
+	}
+
+	// The original, unsubstituted content must still pass.
+	if err := enforceTrust(vaultPath, vault1); err != nil {
+		t.Fatalf("expected original content to pass, got %v", err)
+	}
+}
+
 func TestEnforceTrustUntrustedIsWarningNotError(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

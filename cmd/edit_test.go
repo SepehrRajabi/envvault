@@ -51,6 +51,44 @@ func TestEditCommandNoChangesLeavesVaultIntact(t *testing.T) {
 	}
 }
 
+func TestEditCommandRefreshesTrustPin(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ENVVAULT_PASSWORD", "password123")
+	algorithm = ""
+	editRecipient = ""
+	scriptDir := t.TempDir()
+	editor := writeExecutableScript(t, scriptDir, "append-editor.sh", `echo "NEW_KEY=new_value" >> "$1"`)
+	t.Setenv("EDITOR", editor)
+
+	dir := t.TempDir()
+	vaultPath := filepath.Join(dir, "v.env.vault")
+	vault := newTestVault(t)
+	if err := os.WriteFile(vaultPath, vault, 0600); err != nil {
+		t.Fatalf("write vault: %v", err)
+	}
+	if err := crypto.SetTrust(vaultPath, crypto.TrustRecord{
+		Algorithm: "aes256gcm-argon2id",
+		Checksum:  crypto.HashVaultChecksum(vault),
+	}); err != nil {
+		t.Fatalf("SetTrust: %v", err)
+	}
+
+	if err := editCmd.RunE(editCmd, []string{vaultPath}); err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+
+	// Editing necessarily changes the ciphertext. A stale content pin
+	// would make the very next enforceTrust call falsely report
+	// substitution.
+	after, err := os.ReadFile(vaultPath)
+	if err != nil {
+		t.Fatalf("read vault after edit: %v", err)
+	}
+	if err := enforceTrust(vaultPath, after); err != nil {
+		t.Fatalf("expected trust pin to be refreshed after edit, got %v", err)
+	}
+}
+
 func TestEditCommandSavesChanges(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ENVVAULT_PASSWORD", "password123")
