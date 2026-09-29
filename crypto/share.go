@@ -37,7 +37,7 @@ func EncodeShare(variables map[string]string, recipientPublicKey string, ttl uin
 	}
 
 	// Get Age provider for public key encryption
-	provider := &AgeProvider{}
+	provider := &AgePubKeyProvider{ID: "age-pubkey"}
 
 	// Encrypt using the recipient's public key
 	encrypted, err := Encrypt(data, []byte(recipientPublicKey), provider)
@@ -98,9 +98,10 @@ func DecodeShare(sharedString string) (map[string]string, error) {
 		return nil, fmt.Errorf("failed to decode encrypted data: %w", err)
 	}
 
-	// Decrypt using Age provider
-	provider := &AgeProvider{}
-	decrypted, err := Decrypt(encrypted, []byte{}, provider)
+	// Decrypt: Decrypt() routes to the provider recorded in the envelope
+	// header (age-pubkey), which decrypts with the recipient's private
+	// key from AGE_IDENTITY / ~/.config/age/keys.txt rather than a password.
+	decrypted, err := Decrypt(encrypted, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
