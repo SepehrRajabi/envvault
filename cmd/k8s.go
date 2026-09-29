@@ -110,13 +110,12 @@ data:
 		// 8. Write output (file or stdout)
 		var out *os.File
 		if k8sOutput != "" {
-			out, err = os.Create(k8sOutput)
+			// Restrict permissions from creation since the manifest contains secrets (base64-encoded, not encrypted)
+			out, err = os.OpenFile(k8sOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
 				return fmt.Errorf("creating output file: %w", err)
 			}
 			defer out.Close()
-			// Restrict permissions since the manifest contains secrets (base64-encoded, not encrypted)
-			out.Chmod(0600)
 		} else {
 			out = os.Stdout
 		}

@@ -58,13 +58,12 @@ var dockerCmd = &cobra.Command{
 		// 5. Determine output destination
 		var out *os.File
 		if dockerOutput != "" {
-			out, err = os.Create(dockerOutput)
+			// Restrict permissions from creation since it contains raw secrets temporarily
+			out, err = os.OpenFile(dockerOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
 				return fmt.Errorf("creating output file: %w", err)
 			}
 			defer out.Close()
-			// Restrict permissions since it contains raw secrets temporarily
-			out.Chmod(0600)
 		} else {
 			out = os.Stdout
 		}
