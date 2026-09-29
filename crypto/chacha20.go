@@ -1,6 +1,10 @@
 package crypto
 
-import "errors"
+import (
+	"errors"
+
+	"golang.org/x/crypto/chacha20"
+)
 
 var (
 	ErrInvalidPassword = errors.New("invalid password")
@@ -13,6 +17,16 @@ func (c *ChaCha20Provider) AlgorithmID() string {
 	return "chacha20"
 }
 
+// initializeState, quarterRound, mixing, and generateKeyStream below are the
+// original hand-rolled ChaCha20 core (RFC 8439), verified to match the
+// vetted implementation's keystream output. ChaCha20Provider.Encrypt/Decrypt
+// no longer call them (they use golang.org/x/crypto/chacha20 instead), but
+// ChaCha20Poly1305Provider.legacyDecrypt (chacha20_poly1305.go) still does,
+// to decrypt vaults encrypted before that provider switched to the vetted
+// AEAD.
+//
+// Deprecated: superseded by golang.org/x/crypto/chacha20 for new code; only
+// legacyDecrypt should still call these.
 func initializeState(key, nonce []byte, blockCount uint32) [16]uint32 {
 	var state [16]uint32
 
@@ -90,7 +104,7 @@ func (c *ChaCha20Provider) Encrypt(plaintext, password []byte) ([]byte, error) {
 		return nil, ErrInvalidPassword
 	}
 
-	nonce, err := RandomBytes(12)
+	nonce, err := RandomBytes(chacha20.NonceSize)
 	if err != nil {
 		return nil, err
 	}
@@ -103,19 +117,12 @@ func (c *ChaCha20Provider) Encrypt(plaintext, password []byte) ([]byte, error) {
 	key := DeriveKey(password, salt, 3, 64*1024, 4)
 	defer secureWipe(key)
 
-	ciphertext := make([]byte, len(plaintext))
-
-	// Process plaintext in 64-byte blocks, incrementing the counter
-	for i := 0; i < len(plaintext); i += 64 {
-		end := min(i+64, len(plaintext))
-
-		blockCount := uint32(i / 64)
-		keyStream := generateKeyStream(key, nonce, blockCount)
-
-		for j := i; j < end; j++ {
-			ciphertext[j] = plaintext[j] ^ keyStream[j-i]
-		}
+	cipher, err := chacha20.NewUnauthenticatedCipher(key, nonce)
+	if err != nil {
+		return nil, err
 	}
+	ciphertext := make([]byte, len(plaintext))
+	cipher.XORKeyStream(ciphertext, plaintext)
 
 	// Prepend salt and nonce IN PLAINTEXT to the ciphertext
 	// Format: [Salt (16)] [Nonce (12)] [Ciphertext (...)]
@@ -142,21 +149,13 @@ func (c *ChaCha20Provider) Decrypt(payload, password []byte) ([]byte, error) {
 	key := DeriveKey(password, salt, 3, 64*1024, 4)
 	defer secureWipe(key)
 
-	// 4. Decrypt by XORing the ciphertext with the keystream
-	plaintext := make([]byte, len(ciphertext))
-
-	for i := 0; i < len(ciphertext); i += 64 {
-		end := min(i+64, len(ciphertext))
-
-		// Calculate which block we are on (matches the Encrypt logic)
-		blockCount := uint32(i / 64)
-		keyStream := generateKeyStream(key, nonce, blockCount)
-
-		// XOR the ciphertext chunk with the keystream
-		for j := i; j < end; j++ {
-			plaintext[j] = ciphertext[j] ^ keyStream[j-i]
-		}
+	// 4. Decrypt by re-generating the same keystream and XORing it back
+	cipher, err := chacha20.NewUnauthenticatedCipher(key, nonce)
+	if err != nil {
+		return nil, err
 	}
+	plaintext := make([]byte, len(ciphertext))
+	cipher.XORKeyStream(plaintext, ciphertext)
 
 	return plaintext, nil
 }

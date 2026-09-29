@@ -159,6 +159,7 @@ envvault edit [vault-file]
 - Opens in `$EDITOR` for editing
 - Re-encrypts on save with original password (or new recipients if specified)
 - Safely deletes temp file after saving
+- Checks the vault's trust pin before decrypting, and refreshes it after saving, if one exists (see `trust`)
 
 **Examples:**
 
@@ -191,6 +192,7 @@ envvault rotate [vault-file]
 - Decrypts vault in memory, re-encrypts with new password
 - Original file updated in-place
 - Unencrypted data never touches disk
+- Checks the vault's trust pin before decrypting, and refreshes it after saving, if one exists (see `trust`)
 
 **Examples:**
 
@@ -221,6 +223,7 @@ envvault migrate [vault-file]
 
 - Decrypts with the old algorithm, then re-encrypts with the new one using the same password/recipients
 - Not suitable for migrating *to* `age-pubkey` — that requires recipients, not a password; use `lock`/`edit -r` for that instead
+- Checks the vault's trust pin before decrypting, and refreshes it (with the new algorithm) after writing, if one exists (see `trust`)
 
 **Examples:**
 
@@ -1180,7 +1183,7 @@ envvault logout project-a/.env.vault
 
 ### trust
 
-Pin a vault's expected algorithm (and, for `age-pubkey` vaults, recipient set) so `unlock`/`export`/`run`/`share` can detect a vault file that's been substituted on disk with differently-encrypted content — even content the victim's own key can decrypt.
+Pin a vault's expected algorithm, recipient set (for `age-pubkey` vaults), and exact content (a checksum) so `unlock`/`export`/`run`/`share` can detect a vault file that's been substituted on disk — including content re-encrypted under the *same* algorithm and recipients, which is the case an attacker without your private key can actually produce.
 
 `envvault lock` pins this automatically unless run with `--no-trust`.
 

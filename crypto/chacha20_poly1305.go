@@ -4,6 +4,8 @@ import (
 	"crypto/subtle"
 	"encoding/binary"
 	"errors"
+
+	"golang.org/x/crypto/chacha20poly1305"
 )
 
 type ChaCha20Poly1305Provider struct {
@@ -19,7 +21,7 @@ func (c *ChaCha20Poly1305Provider) Encrypt(plaintext, password []byte) ([]byte, 
 		return nil, ErrInvalidPassword
 	}
 
-	nonce, err := RandomBytes(12)
+	nonce, err := RandomBytes(chacha20poly1305.NonceSize)
 	if err != nil {
 		return nil, err
 	}
@@ -32,29 +34,18 @@ func (c *ChaCha20Poly1305Provider) Encrypt(plaintext, password []byte) ([]byte, 
 	key := DeriveKey(password, salt, 3, 64*1024, 4)
 	defer secureWipe(key)
 
-	block0KeyStream := generateKeyStream(key, nonce, 0)
-	var polyKey [32]byte
-	copy(polyKey[:], block0KeyStream[:32])
-
-	ciphertext := make([]byte, len(plaintext))
-	for i := 0; i < len(plaintext); i += 64 {
-		end := min(i+64, len(plaintext))
-
-		blockCount := uint32((i / 64) + 1)
-		keyStream := generateKeyStream(key, nonce, blockCount)
-
-		for j := i; j < end; j++ {
-			ciphertext[j] = plaintext[j] ^ keyStream[j-i]
-		}
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, err
 	}
+	// Seal appends the tag to the ciphertext, matching this provider's
+	// existing on-disk format: [Salt (16)] [Nonce (12)] [Ciphertext] [Tag (16)].
+	ciphertextAndTag := aead.Seal(nil, nonce, plaintext, nil)
 
-	tag := poly1305Tag(polyKey, ciphertext)
-
-	output := make([]byte, 0, 16+12+len(ciphertext)+16)
+	output := make([]byte, 0, 16+12+len(ciphertextAndTag))
 	output = append(output, salt...)
 	output = append(output, nonce...)
-	output = append(output, ciphertext...)
-	output = append(output, tag[:]...)
+	output = append(output, ciphertextAndTag...)
 
 	return output, nil
 }
@@ -70,33 +61,63 @@ func (c *ChaCha20Poly1305Provider) Decrypt(payload, password []byte) ([]byte, er
 
 	salt := payload[:16]
 	nonce := payload[16:28]
-	tag := payload[len(payload)-16:]
-	ciphertext := payload[28 : len(payload)-16]
+	ciphertextAndTag := payload[28:]
 
 	key := DeriveKey(password, salt, 3, 64*1024, 4)
 	defer secureWipe(key)
+
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, err
+	}
+
+	if plaintext, err := aead.Open(nil, nonce, ciphertextAndTag, nil); err == nil {
+		return plaintext, nil
+	}
+
+	// Fall back to the original hand-rolled construction. Its Poly1305 MAC
+	// has a real bug (its tags don't match RFC 8439 test vectors — see the
+	// deprecation note on poly1305Tag below), so vaults this provider
+	// encrypted before the switch to the vetted AEAD above have tags the
+	// standard implementation will always reject. This keeps them
+	// decryptable; Encrypt above never produces this format anymore.
+	if plaintext, ok := c.legacyDecrypt(ciphertextAndTag, key, nonce); ok {
+		return plaintext, nil
+	}
+
+	return nil, errors.New("authentication failed")
+}
+
+// legacyDecrypt verifies and decrypts a payload using the original
+// hand-rolled ChaCha20+Poly1305 construction, for backward compatibility
+// with vaults encrypted before Encrypt switched to the vetted
+// golang.org/x/crypto/chacha20poly1305 AEAD.
+func (c *ChaCha20Poly1305Provider) legacyDecrypt(ciphertextAndTag, key, nonce []byte) ([]byte, bool) {
+	if len(ciphertextAndTag) < 16 {
+		return nil, false
+	}
+	tag := ciphertextAndTag[len(ciphertextAndTag)-16:]
+	ciphertext := ciphertextAndTag[:len(ciphertextAndTag)-16]
 
 	block0KeyStream := generateKeyStream(key, nonce, 0)
 	var polyKey [32]byte
 	copy(polyKey[:], block0KeyStream[:32])
 
 	if !poly1305Verify(polyKey, ciphertext, tag) {
-		return nil, errors.New("authentication failed")
+		return nil, false
 	}
 
 	plaintext := make([]byte, len(ciphertext))
 	for i := 0; i < len(ciphertext); i += 64 {
 		end := min(i+64, len(ciphertext))
-
 		blockCount := uint32((i / 64) + 1)
 		keyStream := generateKeyStream(key, nonce, blockCount)
-
 		for j := i; j < end; j++ {
 			plaintext[j] = ciphertext[j] ^ keyStream[j-i]
 		}
 	}
 
-	return plaintext, nil
+	return plaintext, true
 }
 
 func (c *ChaCha20Poly1305Provider) Description() ProviderInfo {
@@ -107,6 +128,21 @@ func (c *ChaCha20Poly1305Provider) Description() ProviderInfo {
 	}
 }
 
+// poly1305Tag and poly1305Verify below are the original hand-rolled
+// Poly1305 MAC (RFC 8439). Encrypt now uses the vetted
+// golang.org/x/crypto/chacha20poly1305 AEAD instead of this from-scratch
+// construction, and Decrypt only falls back to these (via legacyDecrypt)
+// for vaults encrypted before that switch.
+//
+// poly1305Tag does NOT match RFC 8439's test vectors — it has a genuine
+// carry-propagation bug — so its tags are only self-consistent with this
+// file's own poly1305Verify, not interoperable with any standard Poly1305
+// implementation. That's fine for its current sole purpose (decrypting
+// envvault's own legacy ciphertexts), but do not reuse it anywhere a
+// standards-compliant tag is required.
+//
+// Deprecated: superseded by golang.org/x/crypto/chacha20poly1305 for new
+// encryption; only legacyDecrypt should still call this.
 func poly1305Tag(key [32]byte, message []byte) [16]byte {
 	r := make([]byte, 16)
 	copy(r, key[:16])
