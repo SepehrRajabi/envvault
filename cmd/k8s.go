@@ -115,6 +115,8 @@ data:
 				return fmt.Errorf("creating output file: %w", err)
 			}
 			defer out.Close()
+			// Restrict permissions since the manifest contains secrets (base64-encoded, not encrypted)
+			out.Chmod(0600)
 		} else {
 			out = os.Stdout
 		}
