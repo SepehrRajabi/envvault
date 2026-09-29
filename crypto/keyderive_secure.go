@@ -23,26 +23,6 @@ func DeriveKeyLocked(password, salt []byte, time, memory uint32, threads uint8) 
 	return lockedKey, nil
 }
 
-// EncryptWithLockedKey encrypts plaintext using a pre-derived key in locked memory.
-// This is useful when you have a key that you want to keep in protected memory
-// throughout the encryption operation.
-func EncryptWithLockedKey(plaintext []byte, lockedKey *LockedBytes) ([]byte, error) {
-	if lockedKey == nil || lockedKey.Len() == 0 {
-		return nil, fmt.Errorf("invalid locked key")
-	}
-
-	// The key must remain accessible for the encryption operation
-	// We trust that it's already protected by mlock
-	key := lockedKey.Bytes()
-
-	// Perform encryption with the locked key
-	// Note: This doesn't copy the key - it uses it in place
-	// so it remains locked throughout the operation
-	// ... implementation depends on specific cipher mode
-	// This is a template - actual implementation follows
-	return key, nil
-}
-
 // CompareKeysSecure compares two keys in a way that doesn't leak timing information
 // and securely handles the memory.
 func CompareKeysSecure(key1, key2 []byte) bool {

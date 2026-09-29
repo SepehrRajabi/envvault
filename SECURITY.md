@@ -50,12 +50,14 @@ readable from a swap file or hibernation image days later.
    `DecryptToString`, and `DecryptAndLock` are exported convenience
    functions **not currently called by any command** — available library
    API, not part of the live request path.
-5. **`crypto/keyderive_secure.go`** — `DeriveKeyLocked`, `CompareKeysSecure`,
-   `EncryptWithLockedKey`. **None of these are used anywhere in the
-   codebase today.** `EncryptWithLockedKey` in particular is an unfinished
-   stub — it returns the key bytes unmodified instead of encrypting
-   anything. Don't use it as-is if you're extending envvault; it needs a
-   real implementation first.
+5. **`crypto/keyderive_secure.go`** — `DeriveKeyLocked` derives the Argon2id
+   symmetric key straight into a `LockedBytes`, so the key never exists as a
+   plain, swappable `[]byte`; `crypto/aesgcm-argon2id.go`'s
+   `encryptWithDerivedKeyAESGCM`/`decryptWithDerivedKeyAESGCM` (used by both
+   the AES-GCM provider and the Shamir provider, which layers Shamir shares
+   on top of the same AES-GCM+Argon2id scheme) use it for every lock/unlock.
+   `CompareKeysSecure` is unused today; available library API, not part of
+   the live request path.
 
 ### The Pattern Every Vault-Reading Command Follows
 

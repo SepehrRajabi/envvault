@@ -6,8 +6,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-
-	"golang.org/x/crypto/argon2"
 )
 
 func init() {
@@ -111,10 +109,13 @@ func encryptWithDerivedKeyAESGCM(
 	time, memory uint32,
 	threads uint8,
 ) ([]byte, error) {
-	key := argon2.IDKey(password, salt, time, memory, threads, 32)
-	defer SecureWipe(key)
+	lockedKey, err := DeriveKeyLocked(password, salt, time, memory, threads)
+	if err != nil {
+		return nil, err
+	}
+	defer lockedKey.Unlock()
 
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(lockedKey.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -132,10 +133,13 @@ func decryptWithDerivedKeyAESGCM(
 	time, memory uint32,
 	threads uint8,
 ) ([]byte, error) {
-	key := argon2.IDKey(password, salt, time, memory, threads, 32)
-	defer SecureWipe(key)
+	lockedKey, err := DeriveKeyLocked(password, salt, time, memory, threads)
+	if err != nil {
+		return nil, err
+	}
+	defer lockedKey.Unlock()
 
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(lockedKey.Bytes())
 	if err != nil {
 		return nil, err
 	}
