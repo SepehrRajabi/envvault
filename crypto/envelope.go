@@ -2,7 +2,9 @@ package crypto
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 )
@@ -17,6 +19,20 @@ type envelopeHeader struct {
 	ProviderParams map[string]any `json:"params,omitempty"`
 	// Commit is optional git commit metadata captured at encryption time.
 	Commit *GitCommitMetadata `json:"commit,omitempty"`
+}
+
+// checksumMatches reports whether plaintext's SHA-256 matches the hex-encoded
+// checksum from an envelope header, using a constant-time comparison. This
+// checksum is the sole tamper-detection mechanism for unauthenticated
+// providers (e.g. plain ChaCha20 without Poly1305), so it's compared in
+// constant time rather than with a short-circuiting == on the hex strings.
+func checksumMatches(plaintext []byte, hexChecksum string) bool {
+	want, err := hex.DecodeString(hexChecksum)
+	if err != nil {
+		return false
+	}
+	got := sha256.Sum256(plaintext)
+	return subtle.ConstantTimeCompare(got[:], want) == 1
 }
 
 // Encrypt uses the specified provider (or default) to encrypt data.
@@ -112,8 +128,7 @@ func Decrypt(data, password []byte, p Provider) ([]byte, error) {
 	}
 
 	// Verify integrity
-	checksum := sha256.Sum256(plaintext)
-	if fmt.Sprintf("%x", checksum[:]) != hdr.Checksum {
+	if !checksumMatches(plaintext, hdr.Checksum) {
 		return nil, fmt.Errorf("checksum mismatch: data corrupted or wrong password")
 	}
 

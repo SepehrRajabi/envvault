@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -49,8 +48,7 @@ func DecryptSecure(data, password []byte, p Provider) (*LockedBytes, error) {
 	}
 
 	// Verify integrity before locking in memory
-	checksum := sha256.Sum256(plaintext)
-	if fmt.Sprintf("%x", checksum[:]) != hdr.Checksum {
+	if !checksumMatches(plaintext, hdr.Checksum) {
 		// Securely wipe the unverified plaintext
 		SecureWipe(plaintext)
 		return nil, fmt.Errorf("checksum mismatch: data corrupted or wrong password")
@@ -198,8 +196,7 @@ func DecryptWithMetadata(data, password []byte, p Provider) (*DecryptedEnv, erro
 	}
 
 	// Verify integrity
-	checksum := sha256.Sum256(plaintext)
-	if fmt.Sprintf("%x", checksum[:]) != hdr.Checksum {
+	if !checksumMatches(plaintext, hdr.Checksum) {
 		SecureWipe(plaintext)
 		return nil, fmt.Errorf("checksum mismatch: data corrupted or wrong password")
 	}
