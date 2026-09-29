@@ -50,7 +50,7 @@ var rotateCmd = &cobra.Command{
 		decryped := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure
-		if _, err := envfile.Parse(string(decryped)); err != nil {
+		if _, err := envfile.Parse(decryped); err != nil {
 			return fmt.Errorf("parsing env file: %w", err)
 		}
 

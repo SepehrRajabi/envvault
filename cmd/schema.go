@@ -137,7 +137,7 @@ func loadEnvVarsForSchema(filePath string) ([]envfile.EnvVar, error) {
 	}
 
 	if !isVaultFile(filePath, data) {
-		return envfile.Parse(string(data))
+		return envfile.Parse(data)
 	}
 
 	password, err := getVaultCredentials(data, filePath)
@@ -160,7 +160,7 @@ func loadEnvVarsForSchema(filePath string) ([]envfile.EnvVar, error) {
 	}
 	defer lockedPlaintext.Unlock()
 
-	return envfile.Parse(string(lockedPlaintext.Bytes()))
+	return envfile.Parse(lockedPlaintext.Bytes())
 }
 
 func init() {

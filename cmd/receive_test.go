@@ -45,7 +45,7 @@ func TestImportVariablesMergesIntoExistingFile(t *testing.T) {
 		t.Fatalf("read target: %v", err)
 	}
 
-	parsed, err := envfile.Parse(string(data))
+	parsed, err := envfile.Parse(data)
 	if err != nil {
 		t.Fatalf("parse merged file: %v", err)
 	}

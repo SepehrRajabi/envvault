@@ -61,7 +61,7 @@ func importVariables(variables map[string]string, targetFile string) error {
 			return fmt.Errorf("reading %s: %w", targetFile, err)
 		}
 
-		parsedVars, err := envfile.Parse(string(data))
+		parsedVars, err := envfile.Parse(data)
 		if err != nil {
 			return fmt.Errorf("parsing %s: %w", targetFile, err)
 		}

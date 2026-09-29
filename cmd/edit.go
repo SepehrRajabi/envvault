@@ -58,7 +58,7 @@ var editCmd = &cobra.Command{
 		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure before editing
-		if _, err := envfile.Parse(string(decrypted)); err != nil {
+		if _, err := envfile.Parse(decrypted); err != nil {
 			return fmt.Errorf("parsing env file: %w", err)
 		}
 
@@ -101,7 +101,7 @@ var editCmd = &cobra.Command{
 		}
 
 		// 11. Parse edited .env contents to validate structure before re-encryption
-		if _, err := envfile.Parse(string(modified)); err != nil {
+		if _, err := envfile.Parse(modified); err != nil {
 			return fmt.Errorf("parsing edited env file: %w", err)
 		}
 

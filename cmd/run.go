@@ -63,9 +63,9 @@ var runCmd = &cobra.Command{
 				}
 				defer lockedPlaintext.Unlock()
 
-				return envfile.Parse(string(lockedPlaintext.Bytes()))
+				return envfile.Parse(lockedPlaintext.Bytes())
 			}
-			return envfile.Parse(string(data))
+			return envfile.Parse(data)
 		}
 
 		envVars, err := loadVars(envFilePath)

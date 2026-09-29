@@ -30,7 +30,7 @@ var composeCmd = &cobra.Command{
 		}
 		defer doc.Close()
 
-		vars, err := envfile.Parse(string(doc.Plaintext()))
+		vars, err := envfile.Parse(doc.Plaintext())
 		if err != nil {
 			return fmt.Errorf("parsing env file: %w", err)
 		}

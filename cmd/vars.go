@@ -190,7 +190,7 @@ func getEnvValue(content []byte, key string) (string, bool, error) {
 	if err := validateEnvKey(key); err != nil {
 		return "", false, err
 	}
-	vars, err := envfile.Parse(string(content))
+	vars, err := envfile.Parse(content)
 	if err != nil {
 		return "", false, err
 	}

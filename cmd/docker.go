@@ -50,7 +50,7 @@ var dockerCmd = &cobra.Command{
 		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents
-		vars, err := envfile.Parse(string(decrypted))
+		vars, err := envfile.Parse(decrypted)
 		if err != nil {
 			return fmt.Errorf("parsing env file: %w", err)
 		}

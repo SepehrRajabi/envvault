@@ -2,6 +2,7 @@ package envfile
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"strings"
 )
@@ -26,11 +27,16 @@ func (p *ParseError) Error() string {
 
 // Parse reads .env-formatted content (KEY=value per line, blank lines and
 // #-prefixed comments ignored) into a slice of EnvVar.
-func Parse(content string) ([]EnvVar, error) {
+//
+// content is taken as []byte rather than string so callers holding
+// decrypted plaintext in a wipeable buffer (crypto.LockedBytes) aren't
+// forced to copy the whole file into an immutable, unwipeable string
+// just to parse it.
+func Parse(content []byte) ([]EnvVar, error) {
 	var EnvVars []EnvVar
 	lineNumber := 0
 
-	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner := bufio.NewScanner(bytes.NewReader(content))
 
 	for scanner.Scan() {
 		lineNumber += 1

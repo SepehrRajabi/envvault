@@ -52,7 +52,7 @@ var exportCmd = &cobra.Command{
 		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure
-		if _, err := envfile.Parse(string(decrypted)); err != nil {
+		if _, err := envfile.Parse(decrypted); err != nil {
 			return fmt.Errorf("parsing env file: %w", err)
 		}
 

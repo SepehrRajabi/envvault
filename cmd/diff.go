@@ -99,7 +99,7 @@ func loadVarsForDiff(filePath string) ([]envfile.EnvVar, error) {
 	}
 	defer doc.Close()
 
-	vars, err := envfile.Parse(string(doc.Plaintext()))
+	vars, err := envfile.Parse(doc.Plaintext())
 	if err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", filePath, err)
 	}

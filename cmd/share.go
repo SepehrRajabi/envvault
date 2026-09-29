@@ -104,10 +104,10 @@ The recipient can decrypt it with: envvault receive <base64_string>`,
 				}
 				defer lockedPlaintext.Unlock()
 
-				return envfile.Parse(string(lockedPlaintext.Bytes()))
+				return envfile.Parse(lockedPlaintext.Bytes())
 			}
 
-			return envfile.Parse(string(data))
+			return envfile.Parse(data)
 		}
 
 		envVars, err := loadVars(filePath)
