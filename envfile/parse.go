@@ -21,7 +21,7 @@ type ParseError struct {
 }
 
 func (p *ParseError) Error() string {
-	return "Parse error on line " + string(rune(p.Line)) + ": " + p.Message
+	return fmt.Sprintf("Parse error on line %d: %s", p.Line, p.Message)
 }
 
 // Parse reads .env-formatted content (KEY=value per line, blank lines and
