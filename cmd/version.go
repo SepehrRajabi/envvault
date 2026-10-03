@@ -9,7 +9,7 @@ import (
 
 const (
 	// appVersion is the current envvault release version (major.minor.patch).
-	appVersion = "0.0.3"
+	appVersion = "0.0.4"
 
 	// appVersionTag is an optional pre-release label appended to appVersion,
 	// e.g. "beta" or "rc1". Leave it empty for a stable release.
