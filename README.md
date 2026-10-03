@@ -3,7 +3,7 @@
 Encrypted `.env` file manager. Lock, unlock, diff, and share environment variables securely across your team.
 
 > [!WARNING]
-> **⚠️ v0.0.3 Early Beta Release**
+> **⚠️ v0.0.4 Early Beta Release**
 >
 > envvault is in early development. The core functionality works well and has been manually tested extensively, but:
 >
@@ -1032,7 +1032,7 @@ Memory lock (mlock)          ✅ OK     supported
 Debug mode                   ✅ OK     DEBUG not set (disabled)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-version: 0.0.3 beta (5f534d7be898)
+version: 0.0.4 beta (5f534d7be898)
 
 🔐 Supported algorithms
   * aes256gcm-argon2id (secure)
@@ -1065,7 +1065,7 @@ envvault version
 
 ```bash
 envvault version
-# envvault version 0.0.3 beta (5f534d7be898)
+# envvault version 0.0.4 beta (5f534d7be898)
 ```
 
 ---
