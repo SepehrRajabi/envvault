@@ -221,10 +221,31 @@ func setEnvValue(content []byte, key, value string) ([]byte, bool, error) {
 		}
 	}
 	if !updated {
-		lines = append(lines, envLine{Raw: fmt.Sprintf("%s=%s", key, value), Key: key, Value: value, IsKV: true})
+		prefix := dominantExportPrefix(lines)
+		lines = append(lines, envLine{Raw: fmt.Sprintf("%s%s=%s", prefix, key, value), Prefix: prefix, Key: key, Value: value, IsKV: true})
 	}
 
 	return formatEnvDocumentLines(lines), updated, nil
+}
+
+// dominantExportPrefix returns "export " if existing key-value lines in the
+// file predominantly use the export prefix, so new keys added by set match
+// the file's existing convention instead of always being plain.
+func dominantExportPrefix(lines []envLine) string {
+	exported, total := 0, 0
+	for _, line := range lines {
+		if !line.IsKV {
+			continue
+		}
+		total++
+		if line.Prefix == "export " {
+			exported++
+		}
+	}
+	if total > 0 && exported*2 > total {
+		return "export "
+	}
+	return ""
 }
 
 func unsetEnvValue(content []byte, key string) ([]byte, bool, error) {

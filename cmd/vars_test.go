@@ -31,6 +31,33 @@ func TestSetEnvValueAddsAndUpdates(t *testing.T) {
 	}
 }
 
+func TestSetEnvValueMatchesExportConventionWhenAddingKey(t *testing.T) {
+	content := []byte("export FOO=bar\nexport BAZ=qux\n")
+
+	updated, existed, err := setEnvValue(content, "API_KEY", "secret")
+	if err != nil {
+		t.Fatalf("setEnvValue add: %v", err)
+	}
+	if existed {
+		t.Fatalf("expected key to be added, not updated")
+	}
+	if got, want := string(updated), "export FOO=bar\nexport BAZ=qux\nexport API_KEY=secret\n"; got != want {
+		t.Fatalf("unexpected add output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestSetEnvValueLeavesNewKeyPlainWhenExportIsMinority(t *testing.T) {
+	content := []byte("export FOO=bar\nBAZ=qux\nQUUX=zap\n")
+
+	updated, _, err := setEnvValue(content, "API_KEY", "secret")
+	if err != nil {
+		t.Fatalf("setEnvValue add: %v", err)
+	}
+	if got, want := string(updated), "export FOO=bar\nBAZ=qux\nQUUX=zap\nAPI_KEY=secret\n"; got != want {
+		t.Fatalf("unexpected add output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestUnsetEnvValue(t *testing.T) {
 	updated, removed, err := unsetEnvValue([]byte("FOO=bar\nAPI_KEY=secret\n"), "FOO")
 	if err != nil {
