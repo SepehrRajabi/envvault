@@ -71,15 +71,17 @@ envvault encrypt [file]
 
 **Flags:**
 
-- `-a, --algorithm <name>`: Encryption algorithm (default: aes256gcm-argon2id)
-- `-r, --recipient <pubkey>`: Age public key for encryption (use multiple times for multiple recipients)
-- `--shares <number>`: Number of Shamir shares to generate (default: 5)
-- `--threshold <number>`: Minimum shares needed to recover secret (default: 3)
-- `--shares-dir <path>`: Directory to save Shamir share files
-- `--allow-weak`: Allow weak passwords (not recommended)
-- `--allow-insecure`: Allow insecure algorithms (only for testing)
-- `--no-trust`: Don't pin this vault's algorithm/recipients as trusted (see [trust](#trust)); by default, `lock` pins them automatically
-- `--list-algorithms`: List available algorithms and exit
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-a, --algorithm <name>` | Encryption algorithm | aes256gcm-argon2id |
+| `-r, --recipient <pubkey>` | Age public key for encryption (use multiple times for multiple recipients) | — |
+| `--shares <number>` | Number of Shamir shares to generate | 5 |
+| `--threshold <number>` | Minimum shares needed to recover secret | 3 |
+| `--shares-dir <path>` | Directory to save Shamir share files | — |
+| `--allow-weak` | Allow weak passwords (not recommended) | — |
+| `--allow-insecure` | Allow insecure algorithms (only for testing) | — |
+| `--no-trust` | Don't pin this vault's algorithm/recipients as trusted (see [trust](#trust)); by default, `lock` pins them automatically | — |
+| `--list-algorithms` | List available algorithms and exit | — |
 
 **Details:**
 
@@ -113,9 +115,11 @@ envvault decrypt [vault-file]
 
 **Flags:**
 
-- `-o, --output <path>`: Output file path (default: remove `.vault` suffix)
-- `--request-access`: For `shamir-aes256gcm` vaults, submit a share toward quorum instead of decrypting directly (see below)
-- `--share <share>`: Shamir share to submit with `--request-access` (prompts if omitted)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-o, --output <path>` | Output file path | remove `.vault` suffix |
+| `--request-access` | For `shamir-aes256gcm` vaults, submit a share toward quorum instead of decrypting directly (see below) | — |
+| `--share <share>` | Shamir share to submit with `--request-access` (prompts if omitted) | — |
 
 **Details:**
 
@@ -151,7 +155,9 @@ envvault edit [vault-file]
 
 **Flags:**
 
-- `-r, --recipient <pubkey>`: Re-encrypt with Age public keys (optional)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-r, --recipient <pubkey>` | Re-encrypt with Age public keys (optional) | — |
 
 **Details:**
 
@@ -185,7 +191,9 @@ envvault rotate [vault-file]
 
 **Flags:**
 
-- `--allow-weak`: Allow weak passwords (not recommended)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--allow-weak` | Allow weak passwords (not recommended) | — |
 
 **Details:**
 
@@ -215,9 +223,11 @@ envvault migrate [vault-file]
 
 **Flags:**
 
-- `--from <name>`: Current encryption algorithm (optional; auto-detected from the vault header if omitted)
-- `--to <name>`: New encryption algorithm (optional; defaults to the same algorithm as `--from`, which is a no-op re-encryption)
-- `--output <path>`: Write the migrated vault to a new file instead of overwriting the original
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--from <name>` | Current encryption algorithm (optional; auto-detected from the vault header if omitted) | — |
+| `--to <name>` | New encryption algorithm (optional; a no-op re-encryption if left at the default) | same as `--from` |
+| `--output <path>` | Write the migrated vault to a new file instead of overwriting the original | — |
 
 **Details:**
 
@@ -249,10 +259,12 @@ envvault diff [file1] [file2]
 
 **Flags:**
 
-- `--keys-only`: Show only added, removed, and changed key names (no values, redacted or not)
-- `--values`: Show plaintext values in the diff output (this is already the default; kept for explicitness)
-- `--redacted`: Redact values in the diff output (default: `false` — values are shown unless this is passed)
-- `--json`: Output a machine-readable JSON diff
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--keys-only` | Show only added, removed, and changed key names (no values, redacted or not) | — |
+| `--values` | Show plaintext values in the diff output (kept for explicitness) | Yes |
+| `--redacted` | Redact values in the diff output | `false` |
+| `--json` | Output a machine-readable JSON diff | — |
 
 **Examples:**
 
@@ -325,7 +337,9 @@ envvault set [envfile / vaultfile] [key] [value]
 
 **Flags:**
 
-- `-r, --recipient <pubkey>`: Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-r, --recipient <pubkey>` | Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients) | — |
 
 **Examples:**
 
@@ -352,7 +366,9 @@ envvault remove [envfile / vaultfile] [key]
 
 **Flags:**
 
-- `-r, --recipient <pubkey>`: Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-r, --recipient <pubkey>` | Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients) | — |
 
 **Examples:**
 
@@ -375,7 +391,9 @@ envvault rename [envfile / vaultfile] [old-key] [new-key]
 
 **Flags:**
 
-- `-r, --recipient <pubkey>`: Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-r, --recipient <pubkey>` | Age public key for re-encrypting `age-pubkey` vaults (use multiple times for multiple recipients) | — |
 
 **Examples:**
 
@@ -398,7 +416,9 @@ envvault inspect [vault-file]
 
 **Flags:**
 
-- `-j, --json`: Output vault metadata as JSON
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-j, --json` | Output vault metadata as JSON | — |
 
 **Examples:**
 
@@ -466,7 +486,9 @@ envvault keygen
 
 **Flags:**
 
-- `-o, --output <path>`: Save private key to file (default: ~/.envvault/keys.txt)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-o, --output <path>` | Save private key to file | ~/.envvault/keys.txt |
 
 **Examples:**
 
@@ -493,7 +515,9 @@ envvault keys add [vault-file] [name] [public-key]
 
 **Flags:**
 
-- `--role <role>`: A label for the key, shown in the confirmation message (optional; not persisted in the vault — only public keys are stored as recipients)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--role <role>` | A label for the key, shown in the confirmation message (optional; not persisted in the vault — only public keys are stored as recipients) | — |
 
 **Details:**
 
@@ -553,9 +577,11 @@ envvault history
 
 **Flags:**
 
-- `-l, --limit <number>`: Show last N entries (default: 10)
-- `--clear`: Clear all history
-- `--set-token <token>`: Store the auth token for the configured `http` history backend in the OS keyring
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-l, --limit <number>` | Show last N entries | 10 |
+| `--clear` | Clear all history | — |
+| `--set-token <token>` | Store the auth token for the configured `http` history backend in the OS keyring | — |
 
 **Examples:**
 
@@ -599,9 +625,11 @@ envvault algorithms [--secure]
 
 **Flags:**
 
-- `-v, --verbose`: Show detailed algorithm information including descriptions
-- `-s, --secure`: Show only secure algorithms
-- `--json`: Output algorithms as JSON
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-v, --verbose` | Show detailed algorithm information including descriptions | — |
+| `-s, --secure` | Show only secure algorithms | — |
+| `--json` | Output algorithms as JSON | — |
 
 **Examples:**
 
@@ -635,7 +663,9 @@ envvault docker [vault-file]
 
 **Flags:**
 
-- `-o, --output <path>`: Save to file instead of stdout
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-o, --output <path>` | Save to file instead of stdout | — |
 
 **Examples:**
 
@@ -658,9 +688,11 @@ envvault compose [envfile / vaultfile]
 
 **Flags:**
 
-- `-s, --service <name>`: Docker Compose service name (default: `app`)
-- `-i, --image <image>`: Optional image to include in the generated service
-- `-o, --output <path>`: Save YAML to a file instead of stdout
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-s, --service <name>` | Docker Compose service name | `app` |
+| `-i, --image <image>` | Optional image to include in the generated service | — |
+| `-o, --output <path>` | Save YAML to a file instead of stdout | — |
 
 **Examples:**
 
@@ -700,10 +732,12 @@ envvault k8s [vault-file]
 
 **Flags:**
 
-- `-n, --name <name>`: Secret name (default: `my-app-secret`)
-- `-s, --namespace <namespace>`: Kubernetes namespace (default: `default`)
-- `-t, --type <type>`: Secret type (default: Opaque)
-- `-o, --output <path>`: Save to file
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-n, --name <name>` | Secret name | `my-app-secret` |
+| `-s, --namespace <namespace>` | Kubernetes namespace | `default` |
+| `-t, --type <type>` | Secret type | Opaque |
+| `-o, --output <path>` | Save to file | — |
 
 **Examples:**
 
@@ -756,10 +790,12 @@ envvault config
 
 **Flags:**
 
-- `--show`: Show configuration (default)
-- `--init`: Initialize config file with defaults
-- `--reset`: Reset config to defaults
-- `--path`: Print the config file path
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--show` | Show configuration | Yes |
+| `--init` | Initialize config file with defaults | — |
+| `--reset` | Reset config to defaults | — |
+| `--path` | Print the config file path | — |
 
 **Config file location:**
 
@@ -801,7 +837,9 @@ envvault schema check [schemafile] [envfile / vaultfile]
 
 **Flags:**
 
-- `--strict`: Fail if the env file contains keys not defined in the schema
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--strict` | Fail if the env file contains keys not defined in the schema | — |
 
 **Schema example:**
 
@@ -841,7 +879,9 @@ envvault schema check [schemafile] [envfile / vaultfile]
 
 **Flags:**
 
-- `--strict`: Fail if the env file contains keys not defined in the schema
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--strict` | Fail if the env file contains keys not defined in the schema | — |
 
 ---
 
@@ -857,10 +897,12 @@ envvault schema init [envfile / vaultfile]
 
 **Flags:**
 
-- `-o, --output <path>`: Schema file to write (default: `.envschema`)
-- `-f, --force`: Overwrite an existing schema file
-- `--optional`: When an input file is provided, generate optional rules instead of marking every key as required
-- `-a, --algorithm <name>`: Override detected algorithm for vault input
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-o, --output <path>` | Schema file to write | `.envschema` |
+| `-f, --force` | Overwrite an existing schema file | — |
+| `--optional` | When an input file is provided, generate optional rules instead of marking every key as required | — |
+| `-a, --algorithm <name>` | Override detected algorithm for vault input | — |
 
 **Examples:**
 
@@ -892,10 +934,12 @@ envvault schema generate [envfile / vaultfile]
 
 **Flags:**
 
-- `-o, --output <path>`: Schema file to write (default: `.envschema`)
-- `-f, --force`: Overwrite an existing schema file
-- `--optional`: Generate optional rules instead of marking every key as required
-- `-a, --algorithm <name>`: Override detected algorithm for vault input
+| Flag | Description | Default |
+| --- | --- | --- |
+| `-o, --output <path>` | Schema file to write | `.envschema` |
+| `-f, --force` | Overwrite an existing schema file | — |
+| `--optional` | Generate optional rules instead of marking every key as required | — |
+| `-a, --algorithm <name>` | Override detected algorithm for vault input | — |
 
 **Examples:**
 
@@ -924,8 +968,10 @@ envvault guard [--init] [--hook]
 
 **Flags:**
 
-- `--init`: Update `.gitignore` with `.env` patterns
-- `--hook`: Install git pre-commit hook
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--init` | Update `.gitignore` with `.env` patterns | — |
+| `--hook` | Install git pre-commit hook | — |
 
 **Examples:**
 
@@ -1082,9 +1128,11 @@ envvault shamir split [secret]
 
 **Flags:**
 
-- `--shares <number>`: Number of shares (default: 5)
-- `--threshold <number>`: Minimum shares needed (default: 3)
-- `--out-dir <path>`: Save shares to directory
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--shares <number>` | Number of shares | 5 |
+| `--threshold <number>` | Minimum shares needed | 3 |
+| `--out-dir <path>` | Save shares to directory | — |
 
 **Examples:**
 
@@ -1195,10 +1243,12 @@ envvault trust [vault-file]
 
 **Flags:**
 
-- `--show`: Show the current trust pin for this vault path
-- `--clear`: Remove the trust pin for this vault path
-- `--algorithm <name>`: Pre-register an expected algorithm (e.g. in CI, before the vault file exists) instead of pinning from an existing file
-- `--recipient <pubkey>`: Pre-register an expected recipient public key (repeatable; use with `--algorithm`)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--show` | Show the current trust pin for this vault path | — |
+| `--clear` | Remove the trust pin for this vault path | — |
+| `--algorithm <name>` | Pre-register an expected algorithm (e.g. in CI, before the vault file exists) instead of pinning from an existing file | — |
+| `--recipient <pubkey>` | Pre-register an expected recipient public key (repeatable; use with `--algorithm`) | — |
 
 **Examples:**
 
@@ -1230,9 +1280,11 @@ envvault share [env-file | vault-file] [VAR1] [VAR2] ... --with <recipient-pubke
 
 **Flags:**
 
-- `--with <pubkey>`: Recipient's Age public key (required)
-- `--vars-file <path>`: Read variable names from a file (one per line)
-- `--ttl`: Expire the shared payload after N seconds
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--with <pubkey>` | Recipient's Age public key (required) | — |
+| `--vars-file <path>` | Read variable names from a file (one per line) | — |
+| `--ttl` | Expire the shared payload after N seconds | — |
 
 **Details:**
 
@@ -1272,8 +1324,10 @@ envvault receive <evlt://...>
 
 **Flags:**
 
-- `--import <path>`: Import variables into this .env file
-- `--output`: Output as shell export statements (for piping)
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--import <path>` | Import variables into this .env file | — |
+| `--output` | Output as shell export statements (for piping) | — |
 
 **Details:**
 
