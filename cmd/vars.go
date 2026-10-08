@@ -312,18 +312,19 @@ var getCmd = &cobra.Command{
 	Short: "Get a single environment variable value",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		doc, err := loadEnvDocument(args[0])
+		fileName, key := args[0], args[1]
+		doc, err := loadEnvDocument(fileName)
 		if err != nil {
 			return err
 		}
 		defer doc.Close()
 
-		value, found, err := getEnvValue(doc.Plaintext(), args[1])
+		value, found, err := getEnvValue(doc.Plaintext(), key)
 		if err != nil {
 			return err
 		}
 		if !found {
-			return fmt.Errorf("key not found: %s", args[1])
+			return fmt.Errorf("key not found: %s", key)
 		}
 		fmt.Println(value)
 		return nil
@@ -335,13 +336,20 @@ var setCmd = &cobra.Command{
 	Short: "Set an environment variable value",
 	Args:  cobra.ExactArgs(3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		doc, err := loadEnvDocument(args[0])
+		fileName, key, value := args[0], args[1], args[2]
+		if err := validateEnvKey(key); err != nil {
+			return err
+		}
+		if strings.Contains(value, "\n") {
+			return fmt.Errorf("value cannot contain newlines")
+		}
+		doc, err := loadEnvDocument(fileName)
 		if err != nil {
 			return err
 		}
 		defer doc.Close()
 
-		updatedContent, existed, err := setEnvValue(doc.Plaintext(), args[1], args[2])
+		updatedContent, existed, err := setEnvValue(doc.Plaintext(), key, value)
 		if err != nil {
 			return err
 		}
@@ -353,8 +361,8 @@ var setCmd = &cobra.Command{
 		if !existed {
 			action = "Added"
 		}
-		fmt.Printf("%s %s in %s\n", action, args[1], args[0])
-		_ = history.Record("Set", args[0], doc.Algorithm)
+		fmt.Printf("%s %s in %s\n", action, key, fileName)
+		_ = history.Record("Set", fileName, doc.Algorithm)
 		return nil
 	},
 }
@@ -365,25 +373,26 @@ var unsetCmd = &cobra.Command{
 	Short:   "Remove an environment variable",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		doc, err := loadEnvDocument(args[0])
+		fileName, key := args[0], args[1]
+		doc, err := loadEnvDocument(fileName)
 		if err != nil {
 			return err
 		}
 		defer doc.Close()
 
-		updatedContent, removed, err := unsetEnvValue(doc.Plaintext(), args[1])
+		updatedContent, removed, err := unsetEnvValue(doc.Plaintext(), key)
 		if err != nil {
 			return err
 		}
 		if !removed {
-			return fmt.Errorf("key not found: %s", args[1])
+			return fmt.Errorf("key not found: %s", key)
 		}
 		if err := doc.Save(updatedContent, mutationRecipients); err != nil {
 			return err
 		}
 
-		fmt.Printf("Removed %s from %s\n", args[1], args[0])
-		_ = history.Record("Unset", args[0], doc.Algorithm)
+		fmt.Printf("Removed %s from %s\n", key, fileName)
+		_ = history.Record("Unset", fileName, doc.Algorithm)
 		return nil
 	},
 }
@@ -393,13 +402,14 @@ var renameCmd = &cobra.Command{
 	Short: "Rename an environment variable key",
 	Args:  cobra.ExactArgs(3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		doc, err := loadEnvDocument(args[0])
+		fileName, oldKey, newKey := args[0], args[1], args[2]
+		doc, err := loadEnvDocument(fileName)
 		if err != nil {
 			return err
 		}
 		defer doc.Close()
 
-		updatedContent, err := renameEnvKey(doc.Plaintext(), args[1], args[2])
+		updatedContent, err := renameEnvKey(doc.Plaintext(), oldKey, newKey)
 		if err != nil {
 			return err
 		}
@@ -407,8 +417,8 @@ var renameCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Renamed %s to %s in %s\n", args[1], args[2], args[0])
-		_ = history.Record("Rename", args[0], doc.Algorithm)
+		fmt.Printf("Renamed %s to %s in %s\n", oldKey, newKey, fileName)
+		_ = history.Record("Rename", fileName, doc.Algorithm)
 		return nil
 	},
 }
