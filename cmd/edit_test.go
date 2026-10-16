@@ -131,7 +131,7 @@ func TestEditCommandTempFileIsPrivateAndCleanedUp(t *testing.T) {
 	scriptDir := t.TempDir()
 	record := filepath.Join(scriptDir, "path.txt")
 	editor := writeExecutableScript(t, scriptDir, "editor.sh",
-		`echo "$1" > "`+record+`"; stat -f %Lp "$(dirname "$1")" >> "`+record+`" 2>/dev/null || stat -c %a "$(dirname "$1")" >> "`+record+`"
+		`echo "$1" > "`+record+`"; ls -ld "$(dirname "$1")" | cut -c1-10 >> "`+record+`"
 echo "X=1" >> "$1"; echo leftover > "$(dirname "$1")/.swp"`)
 	t.Setenv("EDITOR", editor)
 
@@ -154,8 +154,9 @@ echo "X=1" >> "$1"; echo leftover > "$(dirname "$1")/.swp"`)
 	if filepath.Dir(filepath.Dir(tmpPath)) == dir || filepath.Dir(tmpPath) == dir {
 		t.Errorf("temp file %s is inside the vault directory", tmpPath)
 	}
-	if mode != "700" {
-		t.Errorf("temp dir mode = %s, want 700", mode)
+	// `ls -ld` is used above because stat's flags differ between BSD and GNU.
+	if mode != "drwx------" {
+		t.Errorf("temp dir mode = %s, want drwx------", mode)
 	}
 	if _, err := os.Stat(filepath.Dir(tmpPath)); !os.IsNotExist(err) {
 		t.Errorf("temp dir %s was not removed", filepath.Dir(tmpPath))
