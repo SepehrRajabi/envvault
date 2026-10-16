@@ -80,7 +80,7 @@ var unlockCmd = &cobra.Command{
 		}
 
 		// 6. Write to disk with restricted permissions
-		if err := os.WriteFile(outPath, decrypted, 0600); err != nil {
+		if err := writeSecretFile(outPath, decrypted); err != nil {
 			return fmt.Errorf("writing %s: %w", outPath, err)
 		}
 
@@ -201,7 +201,7 @@ func unlockWithShamirQuorum(filePath string, data []byte) error {
 		}
 	}
 
-	if err := os.WriteFile(outPath, decrypted, 0600); err != nil {
+	if err := writeSecretFile(outPath, decrypted); err != nil {
 		return fmt.Errorf("writing %s: %w", outPath, err)
 	}
 

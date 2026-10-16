@@ -39,7 +39,7 @@ var composeCmd = &cobra.Command{
 		if composeOutput == "" {
 			fmt.Print(content)
 		} else {
-			if err := os.WriteFile(composeOutput, []byte(content), 0600); err != nil {
+			if err := writeSecretFile(composeOutput, []byte(content)); err != nil {
 				return fmt.Errorf("writing %s: %w", composeOutput, err)
 			}
 			fmt.Fprintf(os.Stderr, "Wrote Docker Compose snippet to %s\n", composeOutput)

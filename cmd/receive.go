@@ -86,18 +86,18 @@ func importVariables(variables map[string]string, targetFile string) error {
 		existingVars[key] = value
 	}
 
-	// Write back to file
-	content := formatEnvFile(existingVars)
-	if err := os.WriteFile(targetFile, []byte(content), 0644); err != nil {
-		return fmt.Errorf("writing %s: %w", targetFile, err)
-	}
-
 	// Ensure directory exists
 	dir := filepath.Dir(targetFile)
 	if dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("creating directory %s: %w", dir, err)
 		}
+	}
+
+	// Write back to file (0600: it holds decrypted secrets)
+	content := formatEnvFile(existingVars)
+	if err := writeSecretFile(targetFile, []byte(content)); err != nil {
+		return fmt.Errorf("writing %s: %w", targetFile, err)
 	}
 
 	fmt.Printf("📝 Imported into %s\n", targetFile)

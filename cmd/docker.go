@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -60,21 +61,17 @@ var dockerCmd = &cobra.Command{
 		}
 
 		// 5. Determine output destination
-		var out *os.File
-		if dockerOutput != "" {
-			// Restrict permissions from creation since it contains raw secrets temporarily
-			out, err = os.OpenFile(dockerOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-			if err != nil {
-				return fmt.Errorf("creating output file: %w", err)
-			}
-			defer out.Close()
-		} else {
-			out = os.Stdout
-		}
-
 		// 6. Write clean KEY=VALUE format
+		var buf bytes.Buffer
 		for _, v := range vars {
-			fmt.Fprintf(out, "%s=%s\n", v.Key, v.Value)
+			fmt.Fprintf(&buf, "%s=%s\n", v.Key, v.Value)
+		}
+		if dockerOutput != "" {
+			if err := writeSecretFile(dockerOutput, buf.Bytes()); err != nil {
+				return fmt.Errorf("writing output file: %w", err)
+			}
+		} else {
+			os.Stdout.Write(buf.Bytes())
 		}
 
 		alg, _ := crypto.PeekAlgorithm(data)

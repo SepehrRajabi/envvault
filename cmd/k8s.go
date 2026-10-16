@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -112,20 +113,17 @@ data:
 		}
 
 		// 8. Write output (file or stdout)
-		var out *os.File
-		if k8sOutput != "" {
-			// Restrict permissions from creation since the manifest contains secrets (base64-encoded, not encrypted)
-			out, err = os.OpenFile(k8sOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-			if err != nil {
-				return fmt.Errorf("creating output file: %w", err)
-			}
-			defer out.Close()
-		} else {
-			out = os.Stdout
-		}
-
-		if err := t.Execute(out, tmplData); err != nil {
+		var buf bytes.Buffer
+		if err := t.Execute(&buf, tmplData); err != nil {
 			return fmt.Errorf("generating yaml: %w", err)
+		}
+		if k8sOutput != "" {
+			// The manifest contains secrets (base64-encoded, not encrypted)
+			if err := writeSecretFile(k8sOutput, buf.Bytes()); err != nil {
+				return fmt.Errorf("writing output file: %w", err)
+			}
+		} else {
+			os.Stdout.Write(buf.Bytes())
 		}
 
 		alg, _ := crypto.PeekAlgorithm(data)

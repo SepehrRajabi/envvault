@@ -45,6 +45,25 @@ func atomicWrite(path string, data []byte) error {
 	return os.Rename(tmpPath, path)
 }
 
+// writeSecretFile writes sensitive plaintext (decrypted .env files, generated
+// manifests) to path with mode 0600. It writes a fresh 0600 temp file and
+// renames it into place, so an existing file's looser permissions are never
+// inherited. It refuses to write through a symlink (which could redirect the
+// secrets to an attacker-chosen location) or over a non-regular file.
+func writeSecretFile(path string, data []byte) error {
+	if info, err := os.Lstat(path); err == nil {
+		switch {
+		case info.Mode()&os.ModeSymlink != 0:
+			return fmt.Errorf("refusing to write secrets to %s: it is a symbolic link", path)
+		case !info.Mode().IsRegular():
+			return fmt.Errorf("refusing to write secrets to %s: not a regular file", path)
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return atomicWrite(path, data)
+}
+
 type quorumState struct {
 	VaultPath   string   `json:"vault_path,omitempty"`
 	PayloadHash string   `json:"payload_hash,omitempty"`
