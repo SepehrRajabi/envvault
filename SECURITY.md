@@ -20,6 +20,37 @@ PoC, and how it was fixed (with pointers to the relevant source).
   in sync by every command that legitimately re-encrypts a vault in place
   (`lock`, `keys add`/`remove`, `rotate`, `edit`, `migrate`).
 
+## Verifying Releases
+
+Release archives are listed in `checksums.txt`, which is signed with keyless
+[cosign](https://github.com/sigstore/cosign) from the release workflow:
+
+```bash
+cosign verify-blob --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp 'https://github.com/SepehrRajabi/envvault/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+sha256sum --check --ignore-missing checksums.txt
+```
+
+CI actions are pinned to commit SHAs.
+
+## Known Limitations
+
+- **Local trust store is not tamper-proof.** `~/.envvault/trust.json` is a
+  plain file; anything running as you can edit it. Use `--require-trust` /
+  `ENVVAULT_REQUIRE_TRUST=1` in automation so a missing pin is an error.
+- **Shares are unauthenticated.** Anyone can encrypt to your public key, so an
+  `evlt://` share does not prove who sent it. `receive` restricts what it will
+  write (plain identifier names, no line breaks, no code-loading variables
+  without `--allow-sensitive`).
+- **Shamir share length reveals the secret's length.** The shares are the same
+  length as the password they split.
+- **Tracer detection is a speed bump.** The `TracerPid` check is Linux-only
+  and can be bypassed by anyone able to attach a debugger as you or root.
+- **Vault envelope v2 is not readable by older binaries.** Version 1 vaults are
+  still read and are upgraded the next time they are re-encrypted.
+
 ## Memory Hardening
 
 envvault locks decrypted plaintext and passwords in RAM to prevent the OS

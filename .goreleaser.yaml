@@ -28,6 +28,18 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Keyless (OIDC) signature over checksums.txt, which in turn covers every
+# archive. Verify with:
+#   cosign verify-blob --bundle checksums.txt.sigstore.json \
+#     --certificate-identity-regexp 'https://github.com/SepehrRajabi/envvault/.*' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--yes", "--bundle=${signature}", "${artifact}"]
+    artifacts: checksum
+    output: true
+
 changelog:
   sort: asc
   filters:
