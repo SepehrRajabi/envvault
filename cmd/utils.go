@@ -129,6 +129,23 @@ func enforceTrust(filePath string, data []byte) error {
 	return nil
 }
 
+// refreshTrustPin re-pins a vault after a legitimate in-place re-encryption,
+// so the next read doesn't mistake it for a substitution. Failure is only a
+// warning, matching lock/edit/rotate.
+func refreshTrustPin(filePath string, encrypted []byte) {
+	hdr, err := crypto.Verify(encrypted)
+	if err == nil {
+		err = crypto.SetTrust(filePath, crypto.TrustRecord{
+			Algorithm:  hdr.Algorithm,
+			Recipients: crypto.RecipientsFromHeader(hdr),
+			Checksum:   crypto.HashVaultChecksum(encrypted),
+		})
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  Warning: failed to update trust pin for %s: %v\n", filePath, err)
+	}
+}
+
 // getVaultCredentials determines if a vault requires a password or a private key
 // and returns the appropriate credential (or empty byte slice for pubkey vaults).
 // It first checks the OS keyring for a stored key for this file before prompting the user.

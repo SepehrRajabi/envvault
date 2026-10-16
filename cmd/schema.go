@@ -140,6 +140,10 @@ func loadEnvVarsForSchema(filePath string) ([]envfile.EnvVar, error) {
 		return envfile.Parse(data)
 	}
 
+	if err := enforceTrust(filePath, data); err != nil {
+		return nil, err
+	}
+
 	password, err := getVaultCredentials(data, filePath)
 	if err != nil {
 		return nil, err

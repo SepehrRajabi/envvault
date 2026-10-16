@@ -69,6 +69,7 @@ func (d *loadedEnvDocument) Save(content []byte, recipients []string) error {
 	if err := atomicWrite(d.Path, encrypted); err != nil {
 		return fmt.Errorf("writing %s: %w", d.Path, err)
 	}
+	refreshTrustPin(d.Path, encrypted)
 
 	if shareProvider, ok := provider.(crypto.ShareExporter); ok {
 		shares := shareProvider.GeneratedShares()
@@ -95,6 +96,9 @@ func loadEnvDocument(filePath string) (*loadedEnvDocument, error) {
 	}
 
 	doc.IsVault = true
+	if err := enforceTrust(filePath, data); err != nil {
+		return nil, err
+	}
 	alg, err := crypto.PeekAlgorithm(data)
 	if err != nil {
 		return nil, fmt.Errorf("reading vault metadata: %w", err)
