@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -187,8 +188,11 @@ func TestQuorumStateLivesInPrivateHomeDirNotBesideVault(t *testing.T) {
 	if err := saveQuorumState(p, &quorumState{Threshold: 2, Shares: []string{"s"}}); err != nil {
 		t.Fatal(err)
 	}
-	if info, err := os.Stat(filepath.Dir(p)); err != nil || info.Mode().Perm() != 0700 {
-		t.Fatalf("quorum dir should be 0700, got %v %v", info, err)
+	// Windows doesn't expose POSIX permission bits.
+	if runtime.GOOS != "windows" {
+		if info, err := os.Stat(filepath.Dir(p)); err != nil || info.Mode().Perm() != 0700 {
+			t.Fatalf("quorum dir should be 0700, got %v %v", info, err)
+		}
 	}
 	if entries, _ := os.ReadDir(filepath.Dir(vault)); len(entries) != 0 {
 		t.Fatalf("state leaked next to the vault: %v", entries)
