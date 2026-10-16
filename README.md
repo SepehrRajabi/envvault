@@ -774,6 +774,11 @@ envvault run .env.vault -- python main.py --port 8080
 envvault run .env.prod.vault -- docker-compose up
 ```
 
+**Notes:**
+
+- The password comes from `ENVVAULT_PASSWORD` if set, otherwise an interactive prompt. `age-pubkey` vaults need no password; the Age identity is found as described under `AGE_IDENTITY`.
+- The child process inherits your environment **except** `ENVVAULT_PASSWORD` and `AGE_IDENTITY`, so the command being run (and anything it spawns) can't read your vault password or Age private key. A variable with one of those names defined *inside* the vault is still injected.
+
 ---
 
 ## Utility Commands

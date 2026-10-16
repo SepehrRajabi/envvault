@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -41,7 +42,7 @@ var runCmd = &cobra.Command{
 				}
 
 				// Read password into locked memory to prevent swapping
-				lockedPassword, err := crypto.GetPasswordLocked("Enter password for " + filePath + ": ")
+				lockedPassword, err := runCredentials(data, filePath)
 				if err != nil {
 					return nil, err
 				}
@@ -74,12 +75,12 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
-		// 3. Inherit the current process's environment and merge with the new env vars
-		finalEnv := os.Environ()
+		// 3. Inherit the current process's environment (minus envvault's own
+		// credentials) and merge with the new env vars
 		envMap := make(map[string]string)
-		for _, e := range finalEnv {
+		for _, e := range os.Environ() {
 			parts := strings.SplitN(e, "=", 2)
-			if len(parts) == 2 {
+			if len(parts) == 2 && !isCredentialEnvVar(parts[0]) {
 				envMap[parts[0]] = parts[1]
 			}
 		}
@@ -134,6 +135,37 @@ var runCmd = &cobra.Command{
 		_ = history.Record("Run", envFilePath, algorithm)
 		return nil
 	},
+}
+
+// credentialEnvVars are the environment variables envvault itself reads to
+// obtain decryption credentials. They must not leak into the child process:
+// the command being run (and everything it spawns) would otherwise be able
+// to read the vault password or age private key from its environment. A
+// variable of the same name defined *inside* the vault is still injected.
+var credentialEnvVars = []string{"ENVVAULT_PASSWORD", "AGE_IDENTITY"}
+
+func isCredentialEnvVar(name string) bool {
+	for _, v := range credentialEnvVars {
+		if strings.EqualFold(name, v) && (name == v || runtime.GOOS == "windows") {
+			return true
+		}
+	}
+	return false
+}
+
+// runCredentials returns the credential for a vault in locked memory:
+// nothing for age-pubkey vaults (the identity is looked up by the provider),
+// ENVVAULT_PASSWORD when set, otherwise an interactive prompt.
+func runCredentials(data []byte, filePath string) (*crypto.LockedBytes, error) {
+	if alg, _ := crypto.PeekAlgorithm(data); alg == "age-pubkey" {
+		return crypto.NewLockedBytesFrom(nil)
+	}
+	if pw := os.Getenv("ENVVAULT_PASSWORD"); pw != "" {
+		b := []byte(pw)
+		defer crypto.SecureWipe(b)
+		return crypto.NewLockedBytesFrom(b)
+	}
+	return crypto.GetPasswordLocked("Enter password for " + filePath + ": ")
 }
 
 func init() {
