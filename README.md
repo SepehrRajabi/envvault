@@ -1235,6 +1235,8 @@ Pin a vault's expected algorithm, recipient set (for `age-pubkey` vaults), and e
 
 `envvault lock` pins this automatically unless run with `--no-trust`.
 
+By default a vault with **no** pin (a fresh CI checkout, a different `$HOME`, a file you never locked yourself) is still accepted with a warning, so first-time use isn't broken. That is fail-open: anyone who can replace the file can also arrange for there to be no pin. In CI and other automated environments, pass the global `--require-trust` flag (or set `ENVVAULT_REQUIRE_TRUST=1`) to turn the warning into a hard error for every command that reads a vault, and pre-register what you expect with `trust --algorithm ...` before the vault is fetched.
+
 **Usage:**
 
 ```bash
@@ -1264,6 +1266,10 @@ envvault trust .env.vault --clear
 
 # Pre-register expected values before the vault file exists (e.g. in CI)
 envvault trust .env.vault --algorithm age-pubkey --recipient age1...
+
+# Refuse to read any vault that has no trust pin
+envvault --require-trust run .env.vault -- ./deploy.sh
+ENVVAULT_REQUIRE_TRUST=1 envvault export .env.vault
 ```
 
 ---
@@ -1359,6 +1365,7 @@ envvault receive evlt://eyJhbGciOi... --output | source /dev/stdin
 | --- | --- | --- |
 | `ENVVAULT_PASSWORD` | any command that decrypts/encrypts a password-based vault | Supplies the vault password non-interactively instead of prompting, for CI and scripted use (`docker`, `k8s`, `run`, etc.) |
 | `ENVVAULT_CONFIG` | every command | Overrides the config file path, taking precedence over the default `~/.config/envvault/config.toml`. The `--config` flag takes precedence over this |
+| `ENVVAULT_REQUIRE_TRUST` | every command that reads a vault | When `1`/`true`/`yes`/`on`, a vault with no trust pin is a hard error instead of a warning. Equivalent to the global `--require-trust` flag |
 | `ENVVAULT_DEFAULT_PROVIDER` | startup (before any command runs) | Overrides the default encryption algorithm/provider (falls back to `aes256gcm-argon2id` if unset or unrecognized) |
 | `AGE_IDENTITY` | commands operating on `age-pubkey` vaults | The Age private key itself (an `AGE-SECRET-KEY-...` string, not a file path) used to decrypt without a password. Falls back to `~/.envvault/keys.txt`, then `~/.config/age/keys.txt`, if unset |
 | `DEBUG` | startup (before any command runs) | Set to `1`/`true` to allow running under a debugger/tracer and to downgrade the insecure-default-provider check from a hard exit to a warning. Unset (or any other value) enforces both checks strictly |

@@ -122,6 +122,19 @@ func isValidBase64(value string) bool {
 	return err == nil
 }
 
+// trustRequired reports whether a missing trust pin must be a hard failure,
+// via --require-trust or a truthy ENVVAULT_REQUIRE_TRUST (1/true/yes/on).
+func trustRequired() bool {
+	if requireTrust {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ENVVAULT_REQUIRE_TRUST"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
 // enforceTrust verifies that a vault's actual algorithm/recipients match
 // whatever was pinned for its path (via `envvault lock` or `envvault trust`).
 // It must be called before any credential prompt or decryption attempt:
@@ -137,6 +150,13 @@ func enforceTrust(filePath string, data []byte) error {
 
 	if err := crypto.CheckTrust(filePath, data, hdr); err != nil {
 		if err == crypto.ErrUntrustedVault {
+			if trustRequired() {
+				return fmt.Errorf(
+					"vault %s has no trust pin and trust is required (--require-trust / ENVVAULT_REQUIRE_TRUST) — "+
+						"pin it first with `envvault trust %s` after verifying it out-of-band, or pre-register "+
+						"expected values with `envvault trust %s --algorithm ... [--recipient ...]`",
+					filePath, filePath, filePath)
+			}
 			fmt.Fprintf(os.Stderr,
 				"⚠️  No trust record for %s — run `envvault trust %s` after verifying its contents to pin it and detect future substitution.\n",
 				filePath, filePath)

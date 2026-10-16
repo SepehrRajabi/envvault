@@ -10,7 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configFlagPath string
+var (
+	configFlagPath string
+	requireTrust   bool
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "envvault",
@@ -37,5 +40,6 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().Bool("verbose", false, "verbose output")
+	rootCmd.PersistentFlags().BoolVar(&requireTrust, "require-trust", false, "Fail instead of warning when a vault has no trust pin (also: ENVVAULT_REQUIRE_TRUST=1)")
 	rootCmd.PersistentFlags().StringVar(&configFlagPath, "config", "", "Path to config file (overrides ENVVAULT_CONFIG and the default ~/.config/envvault/config.toml)")
 }
