@@ -120,3 +120,56 @@ func TestEditCommandSavesChanges(t *testing.T) {
 		t.Fatalf("expected edited content to contain new key, got %q", plaintext)
 	}
 }
+
+// The plaintext temp file must live outside the vault's directory, in a
+// private directory, and be removed (including editor leftovers) afterwards.
+func TestEditCommandTempFileIsPrivateAndCleanedUp(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ENVVAULT_PASSWORD", "password123")
+	algorithm = ""
+	editRecipient = ""
+	scriptDir := t.TempDir()
+	record := filepath.Join(scriptDir, "path.txt")
+	editor := writeExecutableScript(t, scriptDir, "editor.sh",
+		`echo "$1" > "`+record+`"; stat -f %Lp "$(dirname "$1")" >> "`+record+`" 2>/dev/null || stat -c %a "$(dirname "$1")" >> "`+record+`"
+echo "X=1" >> "$1"; echo leftover > "$(dirname "$1")/.swp"`)
+	t.Setenv("EDITOR", editor)
+
+	dir := t.TempDir()
+	vaultPath := filepath.Join(dir, "v.env.vault")
+	if err := os.WriteFile(vaultPath, newTestVault(t), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := editCmd.RunE(editCmd, []string{vaultPath}); err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+
+	out, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Fields(string(out))
+	tmpPath, mode := lines[0], lines[1]
+	if filepath.Dir(filepath.Dir(tmpPath)) == dir || filepath.Dir(tmpPath) == dir {
+		t.Errorf("temp file %s is inside the vault directory", tmpPath)
+	}
+	if mode != "700" {
+		t.Errorf("temp dir mode = %s, want 700", mode)
+	}
+	if _, err := os.Stat(filepath.Dir(tmpPath)); !os.IsNotExist(err) {
+		t.Errorf("temp dir %s was not removed", filepath.Dir(tmpPath))
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("vault directory has stray files: %v", entries)
+	}
+}
+
+func TestEditorNoLeakArgs(t *testing.T) {
+	if len(editorNoLeakArgs("/usr/bin/vim")) == 0 || len(editorNoLeakArgs("nvim")) == 0 {
+		t.Error("expected leak-prevention flags for vim/nvim")
+	}
+	if editorNoLeakArgs("nano") != nil {
+		t.Error("unexpected flags for nano")
+	}
+}

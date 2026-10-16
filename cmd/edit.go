@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/envfile"
@@ -66,15 +68,18 @@ var editCmd = &cobra.Command{
 			return fmt.Errorf("parsing env file: %w", err)
 		}
 
-		// 5. Create a secure temp file
+		// 5. Create a secure temp file inside a private (0700) directory
+		// that never lives in the vault's own directory, so it can't be
+		// committed by accident and editor swap/backup/undo files are
+		// confined to a directory we remove wholesale.
 		tmpFile, err := createSecureTempFile(filePath)
 		if err != nil {
 			return fmt.Errorf("creating temp file: %w", err)
 		}
 		tmpPath := tmpFile.Name()
 
-		// CRITICAL: Always remove the temp file when we're done
-		defer secureCleanup(tmpPath)
+		// CRITICAL: Always remove the temp directory when we're done
+		defer secureCleanup(filepath.Dir(tmpPath))
 
 		// 6. Write decrypted content to temp file
 		if _, err := tmpFile.Write(decrypted); err != nil {
@@ -179,40 +184,71 @@ var editCmd = &cobra.Command{
 	},
 }
 
-// createSecureTempFile creates a temp file with restricted permissions
-// in the same directory as the vault, so editor swap files stay isolated.
+// editTempRoot picks the most RAM-backed, per-user location available for
+// the plaintext temp directory: $XDG_RUNTIME_DIR (a per-user tmpfs on Linux),
+// then /dev/shm on Linux, then the OS temp dir (per-user on macOS/Windows).
+// It is deliberately never the vault's own directory.
+func editTempRoot() string {
+	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return dir
+		}
+	}
+	if runtime.GOOS == "linux" {
+		if info, err := os.Stat("/dev/shm"); err == nil && info.IsDir() {
+			return "/dev/shm"
+		}
+	}
+	return os.TempDir()
+}
+
+// createSecureTempFile creates a temp file for editing vaultPath inside a
+// fresh 0700 directory under editTempRoot.
 func createSecureTempFile(vaultPath string) (*os.File, error) {
-	dir := filepath.Dir(vaultPath)
-	base := filepath.Base(vaultPath)
-
-	// Strip .vault extension for editor syntax highlighting
-	base = strings.TrimSuffix(base, ".vault")
-
-	// Pattern: ".envvault-<random>-.env"
-	pattern := fmt.Sprintf(".envvault-*-%s", base)
-
-	tmpFile, err := os.CreateTemp(dir, pattern)
+	dir, err := os.MkdirTemp(editTempRoot(), "envvault-edit-*")
 	if err != nil {
 		return nil, err
 	}
 
-	// Restrict permissions: only the owner can read/write
-	if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+	// Strip .vault extension for editor syntax highlighting
+	base := strings.TrimSuffix(filepath.Base(vaultPath), ".vault")
+
+	tmpFile, err := os.OpenFile(filepath.Join(dir, base), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		os.RemoveAll(dir)
 		return nil, err
 	}
-
 	return tmpFile, nil
 }
 
-// secureCleanup overwrites the temp file with zeros before deleting it.
-func secureCleanup(path string) {
-	if info, err := os.Stat(path); err == nil {
-		zeros := make([]byte, info.Size())
-		_ = os.WriteFile(path, zeros, 0600)
+// secureCleanup overwrites every file in dir (the edited file plus any
+// swap/backup/undo files the editor left beside it) with zeros, then
+// removes the directory. Overwriting is best-effort: it doesn't help on
+// copy-on-write or journaling filesystems, which is why the directory
+// lives on tmpfs where available.
+func secureCleanup(dir string) {
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !d.Type().IsRegular() {
+			return nil
+		}
+		if info, err := d.Info(); err == nil {
+			_ = os.WriteFile(path, make([]byte, info.Size()), 0600)
+		}
+		return nil
+	})
+	_ = os.RemoveAll(dir)
+}
+
+// editorNoLeakArgs returns extra flags that stop well-known editors from
+// writing plaintext to places outside the temp directory (e.g. vim's
+// ~/.viminfo, or swap/undo files).
+func editorNoLeakArgs(editor string) []string {
+	name := strings.TrimSuffix(strings.ToLower(filepath.Base(editor)), ".exe")
+	switch name {
+	case "vim", "nvim":
+		return []string{"-n", "-i", "NONE", "-c", "set nobackup nowritebackup noundofile"}
 	}
-	_ = os.Remove(path)
+	return nil
 }
 
 // launchEditor opens the file in the user's preferred editor.
@@ -230,14 +266,39 @@ func launchEditor(path string) error {
 	}
 
 	parts := strings.Fields(editor)
-	args := append(parts[1:], path)
+	args := append(append([]string{}, parts[1:]...), editorNoLeakArgs(parts[0])...)
+	args = append(args, path)
 
 	cmd := exec.Command(parts[0], args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	// Keep this process alive while the editor runs so the deferred
+	// cleanup of the plaintext temp directory always executes. Ctrl-C
+	// already reaches the editor via the terminal's process group; signals
+	// aimed only at us (kill, SIGHUP on terminal close) are forwarded.
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	defer signal.Stop(sigs)
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		for {
+			select {
+			case sig := <-sigs:
+				_ = cmd.Process.Signal(sig)
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	return cmd.Wait()
 }
 
 func init() {
