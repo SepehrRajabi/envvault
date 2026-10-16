@@ -197,6 +197,7 @@ envvault rotate [vault-file]
 
 **Details:**
 
+- Keeps the vault's algorithm. For a `shamir-aes256gcm` vault the new password becomes the new shared secret and a fresh set of shares is printed (the old shares stop working). `age-pubkey` vaults have no password to rotate; use `keys add`/`remove`
 - Decrypts vault in memory, re-encrypts with new password
 - Original file updated in-place
 - Unencrypted data never touches disk
@@ -228,8 +229,11 @@ envvault migrate [vault-file]
 | `--from <name>` | Current encryption algorithm (optional; auto-detected from the vault header if omitted) | — |
 | `--to <name>` | New encryption algorithm (optional; a no-op re-encryption if left at the default) | same as `--from` |
 | `--output <path>` | Write the migrated vault to a new file instead of overwriting the original | — |
+| `--allow-insecure` | Allow migrating to an algorithm not rated secure (e.g. unauthenticated `chacha20`) | — |
 
 **Details:**
+
+- Without `--to`, the vault keeps its current algorithm (it is never silently switched to the default)
 
 - Decrypts with the old algorithm, then re-encrypts with the new one using the same password/recipients
 - Not suitable for migrating *to* `age-pubkey` — that requires recipients, not a password; use `lock`/`edit -r` for that instead
@@ -465,6 +469,7 @@ envvault verify-commit [vault-file]
 
 - Fails if the vault has no embedded commit metadata, if the commit isn't present in the current repository, or if `git verify-commit` reports the signature as invalid
 - Requires `git` on `PATH` and running from inside the repository the vault's commit belongs to
+- The embedded metadata is written by whoever ran `lock` and is not signed. This command shows that the named commit exists in your repository and is validly signed; it does **not** prove the vault's contents came from that commit. The hash must be a full 40/64-character hex object id
 
 **Examples:**
 
@@ -583,6 +588,8 @@ envvault history
 | `--clear` | Clear all history | — |
 | `--set-token <token>` | Store the auth token for the configured `http` history backend in the OS keyring | — |
 
+**Notes:** the remote `http` backend requires an `https://` endpoint (plain `http://` is accepted only for `localhost`/loopback); otherwise envvault falls back to local history.
+
 **Examples:**
 
 ```bash
@@ -694,6 +701,8 @@ envvault compose [envfile / vaultfile]
 | `-i, --image <image>` | Optional image to include in the generated service | — |
 | `-o, --output <path>` | Save YAML to a file instead of stdout | — |
 
+**Notes:** `$` in values is written as `$$` so Docker Compose does not interpolate secrets; control characters are escaped.
+
 **Examples:**
 
 ```bash
@@ -738,6 +747,8 @@ envvault k8s [vault-file]
 | `-s, --namespace <namespace>` | Kubernetes namespace | `default` |
 | `-t, --type <type>` | Secret type | Opaque |
 | `-o, --output <path>` | Save to file | — |
+
+**Notes:** variable names must be valid Secret keys (letters, digits, `-`, `_`, `.`), and `--name`/`--namespace`/`--type` are validated, so untrusted vault contents or flags cannot inject YAML.
 
 **Examples:**
 
@@ -1339,10 +1350,14 @@ envvault receive <evlt://...>
 | --- | --- | --- |
 | `--import <path>` | Import variables into this .env file | — |
 | `--output` | Output as shell export statements (for piping) | — |
+| `--allow-sensitive` | Accept code-loading variables such as `PATH`, `LD_PRELOAD` or `NODE_OPTIONS` (only if you trust the sender) | — |
 
 **Details:**
 
-- Decrypts variables encrypted for your Age identity
+- Decrypts variables encrypted for your Age identity. Only `age-pubkey` shares are accepted
+- Anyone can encrypt to your *public* key, so a share proves nothing about who sent it. Variable names must be plain identifiers, values may not contain line breaks, and code-loading variables are refused unless `--allow-sensitive` is given
+- `--ttl` expiry is stored inside the encrypted contents, so a relay can't strip or extend it
+- `--import` writes the target file with mode `0600`
 - Can display, import to file, or output as shell exports
 - No password required (uses your Age private key)
 

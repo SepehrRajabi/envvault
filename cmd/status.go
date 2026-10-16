@@ -32,7 +32,7 @@ var statusCmd = &cobra.Command{
 		for _, vaultFile := range vaultFiles {
 			info, err := getVaultInfo(vaultFile)
 			if err != nil {
-				fmt.Printf("%-25s %-20s %-15s %-35s\n", vaultFile, "ERROR", "?", err.Error())
+				fmt.Printf("%-25s %-20s %-15s %-35s\n", sanitizeForTerminal(vaultFile), "ERROR", "?", sanitizeForTerminal(err.Error()))
 				continue
 			}
 
@@ -47,7 +47,7 @@ var statusCmd = &cobra.Command{
 				modTime = fi.ModTime().Format("2006-01-02 15:04:05")
 			}
 
-			fmt.Printf("%-25s %-20s %-15s %-35s\n", vaultFile, info.Algorithm, keyringStatus, modTime)
+			fmt.Printf("%-25s %-20s %-15s %-35s\n", sanitizeForTerminal(vaultFile), sanitizeForTerminal(info.Algorithm), keyringStatus, modTime)
 		}
 
 		fmt.Println(strings.Repeat("─", 120))

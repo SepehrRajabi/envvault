@@ -99,15 +99,46 @@ func (s *trustStore) save() error {
 		return fmt.Errorf("encoding trust store: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0600)
+	// Atomic replace so a crash or concurrent writer can't leave a truncated
+	// (and therefore unparsable) trust store.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".trust-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
+// trustKey returns the key a vault's pin is stored under: its absolute path
+// with symlinks resolved, so a pin can't be sidestepped by reaching the same
+// file through a different (symlinked) path. If the file doesn't exist yet
+// (pre-registered pins), only the directory is resolved.
 func trustKey(filePath string) (string, error) {
 	abs, err := filepath.Abs(filePath)
 	if err != nil {
 		return "", fmt.Errorf("resolving %s: %w", filePath, err)
 	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved, nil
+	}
+	if dir, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
+		return filepath.Join(dir, filepath.Base(abs)), nil
+	}
 	return abs, nil
+}
+
+// legacyTrustKey is the pre-symlink-resolution key (plain absolute path),
+// still consulted so existing pins keep working.
+func legacyTrustKey(filePath string) string {
+	abs, _ := filepath.Abs(filePath)
+	return abs
 }
 
 // RecipientsFromHeader extracts the recipient public keys recorded in a
@@ -170,6 +201,9 @@ func GetTrust(filePath string) (TrustRecord, bool, error) {
 	}
 
 	record, ok := store.Vaults[key]
+	if !ok {
+		record, ok = store.Vaults[legacyTrustKey(filePath)]
+	}
 	return record, ok, nil
 }
 
@@ -186,6 +220,7 @@ func ClearTrust(filePath string) error {
 	}
 
 	delete(store.Vaults, key)
+	delete(store.Vaults, legacyTrustKey(filePath))
 	return store.save()
 }
 

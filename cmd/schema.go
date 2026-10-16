@@ -137,6 +137,9 @@ func loadEnvVarsForSchema(filePath string) ([]envfile.EnvVar, error) {
 	}
 
 	if !isVaultFile(filePath, data) {
+		if err := rejectPlaintextDowngrade(filePath); err != nil {
+			return nil, err
+		}
 		return envfile.Parse(data)
 	}
 

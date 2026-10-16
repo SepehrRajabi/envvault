@@ -66,6 +66,9 @@ var runCmd = &cobra.Command{
 
 				return envfile.Parse(lockedPlaintext.Bytes())
 			}
+			if err := rejectPlaintextDowngrade(filePath); err != nil {
+				return nil, err
+			}
 			return envfile.Parse(data)
 		}
 

@@ -93,6 +93,9 @@ func loadEnvDocument(filePath string) (*loadedEnvDocument, error) {
 
 	doc := &loadedEnvDocument{Path: filePath, Data: data}
 	if !isVaultFile(filePath, data) {
+		if err := rejectPlaintextDowngrade(filePath); err != nil {
+			return nil, err
+		}
 		return doc, nil
 	}
 

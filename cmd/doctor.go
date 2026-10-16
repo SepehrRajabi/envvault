@@ -232,7 +232,7 @@ func reportSuspiciousVaultFiles() {
 		scanned++
 
 		if _, err := crypto.Verify(data); err != nil {
-			suspicious = append(suspicious, fmt.Sprintf("%s: %v", name, err))
+			suspicious = append(suspicious, sanitizeForTerminal(fmt.Sprintf("%s: %v", name, err)))
 		}
 	}
 

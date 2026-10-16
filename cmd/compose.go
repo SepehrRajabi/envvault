@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/SepehrRajabi/envvault/envfile"
 	"github.com/SepehrRajabi/envvault/history"
@@ -63,7 +64,7 @@ func formatComposeYAML(serviceName, image string, vars []envfile.EnvVar) string 
 	}
 	b.WriteString("    environment:\n")
 	for _, envVar := range vars {
-		fmt.Fprintf(&b, "      %s: %s\n", yamlKey(envVar.Key), yamlScalar(envVar.Value))
+		fmt.Fprintf(&b, "      %s: %s\n", yamlKey(envVar.Key), yamlSecretScalar(envVar.Value))
 	}
 	return b.String()
 }
@@ -81,16 +82,48 @@ func yamlKey(value string) string {
 	return value
 }
 
-func yamlScalar(value string) string {
+// yamlScalar renders value as a double-quoted YAML scalar with control
+// characters escaped. yamlSecretScalar additionally doubles "$" to "$$"
+// because Docker Compose performs ${VAR} interpolation on string values:
+// without that, a secret containing "$" is silently altered, and one
+// containing "${HOST_VAR}" pulls in a variable from the machine running
+// compose.
+func yamlScalar(value string) string { return yamlQuote(value, false) }
+
+// yamlSecretScalar is yamlScalar for values that must reach the container
+// verbatim, escaping "$" so Compose doesn't interpolate them.
+func yamlSecretScalar(value string) string { return yamlQuote(value, true) }
+
+func yamlQuote(value string, escapeDollar bool) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return `""`
 	}
 
-	escaped := strings.ReplaceAll(value, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-	return `"` + escaped + `"`
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range value {
+		switch {
+		case r == '\\':
+			b.WriteString(`\\`)
+		case r == '"':
+			b.WriteString(`\"`)
+		case r == '\n':
+			b.WriteString(`\n`)
+		case r == '\r':
+			b.WriteString(`\r`)
+		case r == '\t':
+			b.WriteString(`\t`)
+		case r == '$' && escapeDollar:
+			b.WriteString("$$")
+		case unicode.IsControl(r):
+			fmt.Fprintf(&b, `\u%04x`, r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 func init() {

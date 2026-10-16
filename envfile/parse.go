@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // EnvVar is a single KEY=value entry from a .env file.
@@ -52,8 +53,12 @@ func Parse(content []byte) ([]EnvVar, error) {
 		if len(parts) != 2 {
 			return nil, &ParseError{Line: lineNumber, Message: "Invalid format"}
 		}
+		key := StripExportPrefix(strings.TrimSpace(parts[0]))
+		if key == "" || strings.IndexFunc(key, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
+			return nil, &ParseError{Line: lineNumber, Message: "Invalid variable name"}
+		}
 		EnvVars = append(EnvVars, EnvVar{
-			Key:   StripExportPrefix(strings.TrimSpace(parts[0])),
+			Key:   key,
 			Value: unquote(strings.TrimSpace(parts[1])),
 		})
 	}
@@ -78,11 +83,10 @@ func StripExportPrefix(key string) string {
 // written by formatEnvFile/FormatDiff-style .env writers for values
 // containing spaces or special characters.
 func unquote(value string) string {
-	if len(value) >= 2 && strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
-		return strings.Trim(value, "\"")
-	}
-	if len(value) >= 2 && strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
-		return strings.Trim(value, "'")
+	// Strip exactly one matching pair. strings.Trim would also eat quotes
+	// that belong to the value itself (`"a\""` or `''x''`).
+	if len(value) >= 2 && value[0] == value[len(value)-1] && (value[0] == '"' || value[0] == '\'') {
+		return value[1 : len(value)-1]
 	}
 	return value
 }

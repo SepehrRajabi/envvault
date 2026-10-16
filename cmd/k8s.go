@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"regexp"
 	"text/template"
 
 	"github.com/SepehrRajabi/envvault/crypto"
@@ -18,6 +19,16 @@ var (
 	k8sNamespace string
 	k8sType      string
 	k8sOutput    string
+)
+
+// k8sSecretKeyPattern is what Kubernetes accepts as a key under a Secret's
+// data. It also keeps untrusted variable names from injecting YAML syntax
+// into the generated manifest.
+var k8sSecretKeyPattern = regexp.MustCompile(`^[-._a-zA-Z0-9]+$`)
+
+var (
+	k8sNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$`)
+	k8sTypePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9./_-]*$`)
 )
 
 var k8sCmd = &cobra.Command{
@@ -67,6 +78,13 @@ var k8sCmd = &cobra.Command{
 			return fmt.Errorf("parsing env file: %w", err)
 		}
 
+		if !k8sNamePattern.MatchString(k8sName) || !k8sNamePattern.MatchString(k8sNamespace) {
+			return fmt.Errorf("--name and --namespace must be valid Kubernetes names (lowercase letters, digits, '-' and '.')")
+		}
+		if !k8sTypePattern.MatchString(k8sType) {
+			return fmt.Errorf("--type %q is not a valid Secret type", k8sType)
+		}
+
 		// 5. Base64 encode values for K8s 'data' field
 		type secretEntry struct {
 			Key   string
@@ -75,6 +93,9 @@ var k8sCmd = &cobra.Command{
 
 		var entries []secretEntry
 		for _, v := range vars {
+			if !k8sSecretKeyPattern.MatchString(v.Key) {
+				return fmt.Errorf("variable name %q is not a valid Kubernetes Secret key (allowed: letters, digits, '-', '_', '.')", v.Key)
+			}
 			entries = append(entries, secretEntry{
 				Key:   v.Key,
 				Value: base64.StdEncoding.EncodeToString([]byte(v.Value)),

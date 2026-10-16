@@ -5,6 +5,7 @@ package keyring
 
 import (
 	"fmt"
+	"path/filepath"
 
 	kr "github.com/zalando/go-keyring"
 )
@@ -16,6 +17,16 @@ const (
 	DefaultKeyringKey = "default-decryption-key"
 )
 
+// fileKeyName turns a vault path into the keyring entry name. Entries are
+// keyed by absolute path so "envvault login .env.vault" run in one project
+// can't be picked up by a different project's file of the same relative name.
+func fileKeyName(filePath string) string {
+	if abs, err := filepath.Abs(filePath); err == nil {
+		return abs
+	}
+	return filePath
+}
+
 // StoreKey stores the decryption key in the OS keystore.
 // If filePath is empty, stores as default key. Otherwise, uses filePath as the key.
 func StoreKey(key string, filePath string) error {
@@ -25,7 +36,7 @@ func StoreKey(key string, filePath string) error {
 
 	keyName := DefaultKeyringKey
 	if filePath != "" {
-		keyName = filePath
+		keyName = fileKeyName(filePath)
 	}
 
 	err := kr.Set(ServiceName, keyName, key)
@@ -45,7 +56,11 @@ func RetrieveKey(filePath string) (string, error) {
 	// Priority order:
 	// 1. If filePath provided, try project-specific key first
 	if filePath != "" {
-		keyNames = append(keyNames, filePath)
+		keyNames = append(keyNames, fileKeyName(filePath))
+		// Entries stored by older versions used the path exactly as typed.
+		if filePath != fileKeyName(filePath) {
+			keyNames = append(keyNames, filePath)
+		}
 	}
 	// 2. Always try default key as fallback
 	keyNames = append(keyNames, DefaultKeyringKey)
@@ -64,6 +79,18 @@ func RetrieveKey(filePath string) (string, error) {
 	}
 	// Catch the Linux DBus/Secret Service error specifically if possible
 	return "", fmt.Errorf("keychain unavailable (are you on a headless Linux server?): %w", lastErr)
+}
+
+// StoreExact stores a value under an exact keyring key (the counterpart of
+// RetrieveExact), without treating the name as a vault file path.
+func StoreExact(key, value string) error {
+	if key == "" || value == "" {
+		return fmt.Errorf("key and value cannot be empty")
+	}
+	if err := kr.Set(ServiceName, key, value); err != nil {
+		return fmt.Errorf("failed to store key in keyring: %w", err)
+	}
+	return nil
 }
 
 // RetrieveExact retrieves a value stored under an exact keyring key, with no
@@ -92,16 +119,30 @@ func HasExactKey(key string) bool {
 // DeleteKey removes the decryption key from the OS keystore.
 // If filePath is empty, deletes the default key. Otherwise, deletes the project-specific key.
 func DeleteKey(filePath string) error {
-	keyName := DefaultKeyringKey
-	if filePath != "" {
-		keyName = filePath
+	if filePath == "" {
+		if err := kr.Delete(ServiceName, DefaultKeyringKey); err != nil {
+			return fmt.Errorf("failed to delete key from keyring: %w", err)
+		}
+		return nil
 	}
 
-	err := kr.Delete(ServiceName, keyName)
-	if err != nil {
-		return fmt.Errorf("failed to delete key from keyring: %w", err)
+	// Remove the absolute-path entry and any legacy as-typed entry.
+	var firstErr error
+	deleted := false
+	for _, name := range []string{fileKeyName(filePath), filePath} {
+		err := kr.Delete(ServiceName, name)
+		if err == nil {
+			deleted = true
+		} else if err != kr.ErrNotFound && firstErr == nil {
+			firstErr = err
+		}
 	}
-
+	if firstErr != nil {
+		return fmt.Errorf("failed to delete key from keyring: %w", firstErr)
+	}
+	if !deleted {
+		return fmt.Errorf("failed to delete key from keyring: %w", kr.ErrNotFound)
+	}
 	return nil
 }
 

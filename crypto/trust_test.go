@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -193,5 +195,24 @@ func TestRelativePathsResolveToSameTrustRecord(t *testing.T) {
 	hdr := &envelopeHeader{Algorithm: "aesgcm-argon2id"}
 	if err := CheckTrust(".env.vault", []byte("vault-bytes"), hdr); err != nil {
 		t.Fatalf("expected trust check to pass for relative path, got %v", err)
+	}
+}
+
+func TestTrustSurvivesSymlinkedPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real.vault")
+	if err := os.WriteFile(real, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.vault")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("symlinks unavailable")
+	}
+	if err := SetTrust(real, TrustRecord{Algorithm: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := GetTrust(link); !ok {
+		t.Fatal("pin for the real path was not found through a symlink to it")
 	}
 }

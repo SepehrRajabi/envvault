@@ -125,3 +125,44 @@ func TestCheckStagedFilesDetectsUnencryptedEnv(t *testing.T) {
 		t.Fatal("expected checkStagedFiles to flag a staged .env file")
 	}
 }
+
+func TestIsDangerousEnvFileCoversSuffixAndInfixNames(t *testing.T) {
+	for file, want := range map[string]bool{
+		"prod.env":           true,
+		"config/secrets.env": true,
+		"app.env.production": true,
+		"prod.env.vault":     false,
+		"app.envschema":      false,
+		".envschema":         false,
+		"prod.env.example":   false,
+		"environment.go":     false,
+	} {
+		if got := isDangerousEnvFile(file); got != want {
+			t.Errorf("isDangerousEnvFile(%q) = %v, want %v", file, got, want)
+		}
+	}
+}
+
+func TestInstallPreCommitHookRunsBeforeExistingExit(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+	hooks := filepath.Join(dir, ".git", "hooks")
+	if err := os.MkdirAll(hooks, 0700); err != nil {
+		t.Fatal(err)
+	}
+	existing := "#!/bin/sh\necho linting\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(hooks, "pre-commit"), []byte(existing), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := installPreCommitHook(); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(filepath.Join(hooks, "pre-commit"))
+	s := string(got)
+	if !strings.HasPrefix(s, "#!/bin/sh\n") || strings.Index(s, "envvault guard") > strings.Index(s, "exit 0") {
+		t.Fatalf("guard must come before the existing hook's exit:\n%s", s)
+	}
+	if strings.Count(s, "#!") != 1 || !strings.Contains(s, "echo linting") {
+		t.Fatalf("unexpected hook content:\n%s", s)
+	}
+}

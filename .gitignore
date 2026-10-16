@@ -43,6 +43,7 @@ dist/
 !.env.example
 !.env.template
 # shamir shares
+.envvault-quorum-*.json
 .*-share-*.txt
 *.envschema
 !*.envschema.example

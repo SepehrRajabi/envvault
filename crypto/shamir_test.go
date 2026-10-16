@@ -303,3 +303,31 @@ func TestDecodeShamirPayloadThresholdRejectsTruncatedData(t *testing.T) {
 		t.Fatal("expected error for truncated header")
 	}
 }
+
+// gfMulRef is the original branching implementation, kept as a reference for
+// the constant-time gfMul.
+func gfMulRef(a, b byte) byte {
+	var res byte
+	for b > 0 {
+		if b&1 == 1 {
+			res ^= a
+		}
+		hi := a & 0x80
+		a <<= 1
+		if hi != 0 {
+			a ^= 0x1b
+		}
+		b >>= 1
+	}
+	return res
+}
+
+func TestGFMulMatchesReferenceForAllInputs(t *testing.T) {
+	for a := 0; a < 256; a++ {
+		for b := 0; b < 256; b++ {
+			if got, want := gfMul(byte(a), byte(b)), gfMulRef(byte(a), byte(b)); got != want {
+				t.Fatalf("gfMul(%d,%d) = %d, want %d", a, b, got, want)
+			}
+		}
+	}
+}

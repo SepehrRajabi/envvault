@@ -133,6 +133,20 @@ func writeLocalEvents(path string, events []Event) error {
 		return fmt.Errorf("marshaling history: %w", err)
 	}
 
-	// Write with 0600 permissions since it contains sensitive metadata
-	return os.WriteFile(path, data, 0600)
+	// Write via a 0600 temp file + rename (history contains sensitive
+	// metadata): a crash or a concurrent envvault process can't leave a
+	// truncated file that would make every later Record fail to parse.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".history-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

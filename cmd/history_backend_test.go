@@ -47,7 +47,7 @@ func TestConfigureHistoryBackendSelectsHTTP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := keyring.StoreKey("s3cr3t-token", historyTokenKeyringKey); err != nil {
+	if err := keyring.StoreExact(historyTokenKeyringKey, "s3cr3t-token"); err != nil {
 		t.Fatalf("seed keyring: %v", err)
 	}
 

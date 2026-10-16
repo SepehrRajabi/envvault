@@ -331,17 +331,15 @@ func evalPoly(coeffs []byte, x byte) byte {
 	return out
 }
 
+// gfMul multiplies in GF(2^8) (x^8 + x^4 + x^3 + x + 1) without
+// data-dependent branches or early exits, since a and b are secret-derived
+// (share bytes and polynomial coefficients).
 func gfMul(a, b byte) byte {
 	var res byte
-	for b > 0 {
-		if b&1 == 1 {
-			res ^= a
-		}
-		hi := a & 0x80
-		a <<= 1
-		if hi != 0 {
-			a ^= 0x1b // x^8 + x^4 + x^3 + x + 1
-		}
+	for range 8 {
+		res ^= a & -(b & 1)
+		hi := a >> 7
+		a = (a << 1) ^ (0x1b & -hi)
 		b >>= 1
 	}
 	return res

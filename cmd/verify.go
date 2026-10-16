@@ -22,18 +22,18 @@ var verifyCmd = &cobra.Command{
 
 		info, err := crypto.Verify(data)
 		if err != nil {
-			fmt.Printf("❌ Invalid vault: %v\n", err)
+			fmt.Printf("❌ Invalid vault: %s\n", sanitizeForTerminal(err.Error()))
 			return fmt.Errorf("verification failed")
 		}
 
 		fmt.Printf("✅ Valid vault\n")
 		fmt.Printf("   Version:   %d\n", info.Version)
-		fmt.Printf("   Algorithm: %s\n", info.Algorithm)
+		fmt.Printf("   Algorithm: %s\n", sanitizeForTerminal(info.Algorithm))
 		fmt.Printf("   Checksum:  %s...\n", info.Checksum[:min(16, len(info.Checksum))])
 		if info.Commit != nil {
-			fmt.Printf("   Git commit: %s\n", info.Commit.Hash)
-			fmt.Printf("   Commit signer: %s\n", info.Commit.Signer)
-			fmt.Printf("   Signature: %s\n", info.Commit.SignatureStatus)
+			fmt.Printf("   Git commit: %s\n", sanitizeForTerminal(info.Commit.Hash))
+			fmt.Printf("   Commit signer: %s\n", sanitizeForTerminal(info.Commit.Signer))
+			fmt.Printf("   Signature: %s\n", sanitizeForTerminal(info.Commit.SignatureStatus))
 		}
 		return nil
 	},

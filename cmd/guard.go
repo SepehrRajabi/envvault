@@ -40,11 +40,13 @@ func init() {
 // isDangerousEnvFile checks if a file looks like an unencrypted .env file
 func isDangerousEnvFile(file string) bool {
 	base := filepath.Base(file)
-	if !strings.HasPrefix(base, ".env") {
+	// ".env", ".env.local", "prod.env", "app.env.production", ...
+	if !strings.HasPrefix(base, ".env") && !strings.HasSuffix(base, ".env") && !strings.Contains(base, ".env.") {
 		return false
 	}
-	// Allow .env.vault, .env.example, .env.template
-	allowedSuffixes := []string{".vault", ".example", ".template", ".sample"}
+	// Allow encrypted vaults, examples/templates, and schema files (which
+	// hold key names and types, not values).
+	allowedSuffixes := []string{".vault", ".example", ".template", ".sample", ".envschema", ".env.schema"}
 	for _, suffix := range allowedSuffixes {
 		if strings.HasSuffix(base, suffix) {
 			return false
@@ -55,13 +57,15 @@ func isDangerousEnvFile(file string) bool {
 
 func checkStagedFiles() error {
 	// Get staged files from git
-	out, err := exec.Command("git", "diff", "--cached", "--name-only").Output()
+	// -z: NUL-separated, unquoted paths (git otherwise quotes names with
+	// unusual characters, which would defeat the name matching below).
+	out, err := exec.Command("git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR").Output()
 	if err != nil {
 		// Not a git repo or git not installed
 		return fmt.Errorf("not a git repository (or git is not installed)")
 	}
 
-	files := strings.Split(strings.TrimSpace(string(out)), "\n")
+	files := strings.Split(string(out), "\x00")
 	var dangerous []string
 
 	for _, file := range files {
@@ -129,6 +133,10 @@ func initGitignore() error {
 		"!.env.vault",
 		"!.env.example",
 		"!.env.template",
+		"*.env",
+		"!*.env.example",
+		"!*.vault",
+		".envvault-*",
 	}
 
 	// Append missing patterns
@@ -188,14 +196,25 @@ fi
 			fmt.Println("✅ Pre-commit hook already installed.")
 			return nil
 		}
-		// Append to existing hook
-		f, err := os.OpenFile(hookPath, os.O_APPEND|os.O_WRONLY, 0755)
-		if err != nil {
-			return fmt.Errorf("opening existing hook: %w", err)
+		// Insert the guard right after the shebang. Appending could leave it
+		// unreachable behind an earlier `exit 0` in the existing hook.
+		existing := string(data)
+		block := strings.TrimPrefix(hookContent, "#!/bin/sh\n")
+		var updated string
+		if strings.HasPrefix(existing, "#!") {
+			nl := strings.IndexByte(existing, '\n')
+			if nl < 0 {
+				nl = len(existing)
+				existing += "\n"
+			}
+			updated = existing[:nl+1] + block + existing[nl+1:]
+		} else {
+			updated = "#!/bin/sh\n" + block + existing
 		}
-		defer f.Close()
-		f.WriteString("\n" + hookContent)
-		fmt.Println("🪝 Appended envvault guard to existing pre-commit hook.")
+		if err := os.WriteFile(hookPath, []byte(updated), 0755); err != nil {
+			return fmt.Errorf("updating existing hook: %w", err)
+		}
+		fmt.Println("🪝 Added envvault guard to the start of the existing pre-commit hook.")
 		return nil
 	}
 

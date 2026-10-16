@@ -124,3 +124,88 @@ func TestRequireTrustFailsWithoutPin(t *testing.T) {
 		t.Errorf("pinned vault rejected in strict mode: %v", err)
 	}
 }
+
+func TestPinnedVaultReplacedByPlaintextIsRejected(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "secrets.enc") // no .vault suffix
+	if err := crypto.SetTrust(path, crypto.TrustRecord{Algorithm: "aes256gcm-argon2id"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("TOKEN=ATTACKER\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadEnvDocument(path); err == nil || !strings.Contains(err.Error(), "pinned as a vault") {
+		t.Fatalf("loadEnvDocument: expected downgrade rejection, got %v", err)
+	}
+	if _, err := loadEnvVarsForSchema(path); err == nil {
+		t.Fatal("schema loader accepted plaintext for a pinned vault")
+	}
+	if err := runCmd.RunE(runCmd, []string{path, "true"}); err == nil {
+		t.Fatal("run accepted plaintext for a pinned vault")
+	}
+	// An unpinned plain .env is still fine.
+	plain := filepath.Join(t.TempDir(), ".env")
+	os.WriteFile(plain, []byte("A=1\n"), 0600)
+	if _, err := loadEnvDocument(plain); err != nil {
+		t.Fatalf("plain env rejected: %v", err)
+	}
+}
+
+func TestValidateHistoryEndpoint(t *testing.T) {
+	for ep, ok := range map[string]bool{
+		"https://history.example.com": true,
+		"http://localhost:8080":       true,
+		"http://127.0.0.1:9000":       true,
+		"http://[::1]:9000":           true,
+		"http://history.example.com":  false,
+		"ftp://x.example.com":         false,
+		"not a url":                   false,
+	} {
+		if err := validateHistoryEndpoint(ep); (err == nil) != ok {
+			t.Errorf("validateHistoryEndpoint(%q) err=%v, want ok=%v", ep, err, ok)
+		}
+	}
+}
+
+func TestSanitizeForTerminal(t *testing.T) {
+	if got := sanitizeForTerminal("ok\x1b[31mred\r\x07\u009b"); strings.ContainsAny(got, "\x1b\r\x07\u009b") {
+		t.Errorf("control chars survived: %q", got)
+	}
+	if got := sanitizeForTerminal("Ünïcode ✓"); got != "Ünïcode ✓" {
+		t.Errorf("printable text altered: %q", got)
+	}
+}
+
+func TestK8sRejectsUnsafeNames(t *testing.T) {
+	for _, bad := range []string{"a: b", "x y", "a#b", "ok\nINJECT"} {
+		if k8sSecretKeyPattern.MatchString(bad) {
+			t.Errorf("key %q should be rejected", bad)
+		}
+	}
+	if !k8sSecretKeyPattern.MatchString("DB_PASSWORD") || !k8sNamePattern.MatchString("my-app.secret") {
+		t.Error("valid names rejected")
+	}
+}
+
+func TestComposeEscapesDollarInSecrets(t *testing.T) {
+	if got := yamlSecretScalar("pa$$${HOME}"); got != `"pa$$$$$${HOME}"` {
+		t.Errorf("got %s", got)
+	}
+	if got := yamlScalar("${TAG}"); got != `"${TAG}"` {
+		t.Errorf("non-secret scalars must not be escaped: %s", got)
+	}
+}
+
+func TestVerifyCommitHashPattern(t *testing.T) {
+	for h, ok := range map[string]bool{
+		"55c4064a97c264eee03a9dc62260db124ccc3355": true,
+		"--help": false,
+		"-h":     false,
+		"55c4064a97c264eee03a9dc62260db124ccc3355; rm -rf": false,
+		"": false,
+	} {
+		if gitHashPattern.MatchString(h) != ok {
+			t.Errorf("gitHashPattern(%q) = %v, want %v", h, !ok, ok)
+		}
+	}
+}

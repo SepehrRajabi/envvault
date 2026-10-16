@@ -4,11 +4,17 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/spf13/cobra"
 )
+
+// gitHashPattern matches a full SHA-1 or SHA-256 git object id. The hash in a
+// vault header is attacker-controlled; anything else (notably a leading "-")
+// would be passed to git as an option.
+var gitHashPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 var verifyCommitCmd = &cobra.Command{
 	Use:   "verify-commit [vault-file]",
@@ -35,12 +41,20 @@ var verifyCommitCmd = &cobra.Command{
 			return fmt.Errorf("commit metadata missing")
 		}
 
-		fmt.Printf("🔐 Commit metadata embedded in %s:\n", filePath)
+		if !gitHashPattern.MatchString(hdr.Commit.Hash) {
+			fmt.Printf("❌ Embedded commit hash %q is not a valid git object id.\n", sanitizeForTerminal(hdr.Commit.Hash))
+			return fmt.Errorf("invalid commit hash")
+		}
+
+		fmt.Printf("🔐 Commit metadata embedded in %s:\n", sanitizeForTerminal(filePath))
 		fmt.Printf("   Commit:           %s\n", hdr.Commit.Hash)
-		fmt.Printf("   Author:           %s\n", hdr.Commit.Author)
-		fmt.Printf("   Signer:           %s\n", hdr.Commit.Signer)
-		fmt.Printf("   Signer key:       %s\n", hdr.Commit.SignerKey)
-		fmt.Printf("   Signature status: %s\n", gitSignatureStatusDescription(hdr.Commit.SignatureStatus))
+		fmt.Printf("   Author:           %s\n", sanitizeForTerminal(hdr.Commit.Author))
+		fmt.Printf("   Signer:           %s\n", sanitizeForTerminal(hdr.Commit.Signer))
+		fmt.Printf("   Signer key:       %s\n", sanitizeForTerminal(hdr.Commit.SignerKey))
+		fmt.Printf("   Signature status: %s\n", gitSignatureStatusDescription(sanitizeForTerminal(hdr.Commit.SignatureStatus)))
+		fmt.Println("   Note: this metadata is recorded by whoever ran `lock` and is not signed by the vault.")
+		fmt.Println("         The check below only shows the named commit exists here and is validly signed;")
+		fmt.Println("         it does not prove the vault's contents came from that commit.")
 
 		if !isGitRepository() {
 			fmt.Println("⚠️  Current directory is not a git repository, cannot verify the embedded commit signature.")
@@ -59,7 +73,7 @@ var verifyCommitCmd = &cobra.Command{
 		output, err := verifyGitCommit(hdr.Commit.Hash)
 		if err != nil {
 			fmt.Println("❌ Commit signature verification failed:")
-			fmt.Printf("   %s\n", strings.TrimSpace(output))
+			fmt.Printf("   %s\n", sanitizeForTerminal(strings.TrimSpace(output)))
 			return fmt.Errorf("commit signature verification failed")
 		}
 

@@ -40,7 +40,7 @@ var inspectCmd = &cobra.Command{
 			if jsonMetadata {
 				return fmt.Errorf("invalid vault: %w", err)
 			}
-			fmt.Printf("❌ Invalid vault: %v\n", err)
+			fmt.Printf("❌ Invalid vault: %s\n", sanitizeForTerminal(err.Error()))
 			return fmt.Errorf("inspection failed")
 		}
 
@@ -106,15 +106,15 @@ var inspectCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Printf("🔍 Vault metadata for %s:\n", filePath)
+		fmt.Printf("🔍 Vault metadata for %s:\n", sanitizeForTerminal(filePath))
 		fmt.Printf("   Version:         %d\n", hdr.Version)
-		fmt.Printf("   Algorithm:       %s\n", hdr.Algorithm)
+		fmt.Printf("   Algorithm:       %s\n", sanitizeForTerminal(hdr.Algorithm))
 		fmt.Printf("   Secure:          %s\n", secure)
 		fmt.Printf("   Authentication:  %s\n", authMethod)
 		fmt.Printf("   Checksum:        %s...\n", hdr.Checksum[:min(16, len(hdr.Checksum))])
 
 		for _, recipient := range recipients {
-			fmt.Printf("   Recipient:       %s\n", recipient)
+			fmt.Printf("   Recipient:       %s\n", sanitizeForTerminal(recipient))
 		}
 
 		if len(hdr.ProviderParams) > 0 && len(recipients) == 0 {
@@ -122,11 +122,11 @@ var inspectCmd = &cobra.Command{
 		}
 
 		if hdr.Commit != nil {
-			fmt.Printf("   Git commit:       %s\n", hdr.Commit.Hash)
-			fmt.Printf("   Commit author:    %s\n", hdr.Commit.Author)
-			fmt.Printf("   Commit signer:    %s\n", hdr.Commit.Signer)
-			fmt.Printf("   Signer key:       %s\n", hdr.Commit.SignerKey)
-			fmt.Printf("   Signature status: %s\n", hdr.Commit.SignatureStatus)
+			fmt.Printf("   Git commit:       %s\n", sanitizeForTerminal(hdr.Commit.Hash))
+			fmt.Printf("   Commit author:    %s\n", sanitizeForTerminal(hdr.Commit.Author))
+			fmt.Printf("   Commit signer:    %s\n", sanitizeForTerminal(hdr.Commit.Signer))
+			fmt.Printf("   Signer key:       %s\n", sanitizeForTerminal(hdr.Commit.SignerKey))
+			fmt.Printf("   Signature status: %s\n", sanitizeForTerminal(hdr.Commit.SignatureStatus))
 		}
 
 		return nil

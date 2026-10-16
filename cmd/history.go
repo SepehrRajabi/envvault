@@ -23,7 +23,7 @@ var historyCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Handle --set-token flag (stores the auth token for the http backend)
 		if historySetToken != "" {
-			if err := keyring.StoreKey(historySetToken, historyTokenKeyringKey); err != nil {
+			if err := keyring.StoreExact(historyTokenKeyringKey, historySetToken); err != nil {
 				return fmt.Errorf("storing history backend token: %w", err)
 			}
 			fmt.Println("🔑 History backend token stored.")

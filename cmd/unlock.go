@@ -143,6 +143,9 @@ func unlockWithShamirQuorum(filePath string, data []byte) error {
 		return fmt.Errorf("existing quorum state threshold %d does not match vault threshold %d", state.Threshold, threshold)
 	}
 
+	if quorumShare != "" {
+		fmt.Fprintln(os.Stderr, "⚠️  Passing --share on the command line exposes it in the process list and shell history; omit it to be prompted instead.")
+	}
 	if quorumShare == "" {
 		shareBytes, err := crypto.GetPassword(fmt.Sprintf("Enter Shamir share to submit for %s: ", filepath.Base(filePath)))
 		if err != nil {

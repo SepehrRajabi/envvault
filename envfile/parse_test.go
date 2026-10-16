@@ -116,3 +116,24 @@ func TestDiff(t *testing.T) {
 		t.Fatalf("unexpected changed: %+v", changed)
 	}
 }
+
+func TestParseRejectsInvalidNames(t *testing.T) {
+	for _, in := range []string{"A B=1\n", "=1\n", "A\tB=1\n"} {
+		if _, err := Parse([]byte(in)); err == nil {
+			t.Errorf("Parse(%q): expected error", in)
+		}
+	}
+}
+
+func TestUnquoteStripsOnlyOneLayer(t *testing.T) {
+	vars, err := Parse([]byte("A=\"x\\\"\"\nB='it''s'\nC=\"\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"A": `x\"`, "B": "it''s", "C": ""}
+	for _, v := range vars {
+		if v.Value != want[v.Key] {
+			t.Errorf("%s = %q, want %q", v.Key, v.Value, want[v.Key])
+		}
+	}
+}

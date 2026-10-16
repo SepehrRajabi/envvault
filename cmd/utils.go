@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/keyring"
@@ -166,6 +167,32 @@ func enforceTrust(filePath string, data []byte) error {
 	}
 
 	return nil
+}
+
+// rejectPlaintextDowngrade fails if path has a trust pin yet its content isn't
+// a vault. isVaultFile treats anything without the .vault suffix or an
+// envelope version byte as a plain .env, so without this a pinned vault
+// replaced by plaintext (under a name without the .vault suffix) would skip
+// every trust check and be read as-is.
+func rejectPlaintextDowngrade(path string) error {
+	if _, pinned, err := crypto.GetTrust(path); err == nil && pinned {
+		return fmt.Errorf("%s is pinned as a vault (see `envvault trust --show`) but contains plaintext — "+
+			"it may have been replaced; run `envvault trust %s --clear` if this is expected", path, path)
+	}
+	return nil
+}
+
+// sanitizeForTerminal replaces control characters (ESC, CR, BEL, C1 codes...)
+// in strings that came from an untrusted file (vault headers, file names)
+// before they're printed, so a crafted vault can't inject terminal escape
+// sequences or overwrite what the user is reading.
+func sanitizeForTerminal(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return '?'
+		}
+		return r
+	}, s)
 }
 
 // refreshTrustPin re-pins a vault after a legitimate in-place re-encryption,
