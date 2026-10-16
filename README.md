@@ -1053,7 +1053,7 @@ envvault doctor
 - Resolves the editor `envvault edit` would use (`$VISUAL`, then `$EDITOR`, then the platform default — `notepad` on Windows, `vi` elsewhere) and checks it's actually on `PATH`
 - Checks git protection: `.gitignore` patterns and pre-commit hook installation
 - Checks memory-lock (`mlock`) support for keeping decrypted secrets out of swap
-- Reports whether `DEBUG` is set and its raw value; flags it as a warning when enabled, since it bypasses the tracer-detection and insecure-provider checks in `main.go`
+- Reports whether `DEBUG` is set and its raw value; flags it as a warning when enabled, since it bypasses the tracer-detection check in `main.go`
 - Prints the current binary version and all supported algorithms (same list as `envvault algorithms`)
 - Scans the current directory for vault files and flags any that fail structural verification (corrupted or tampered)
 - Has no flags; ⚠️ warnings are non-fatal, only ❌ failures are counted in the summary
@@ -1371,9 +1371,9 @@ envvault receive evlt://eyJhbGciOi... --output | source /dev/stdin
 | `ENVVAULT_PASSWORD` | any command that decrypts/encrypts a password-based vault | Supplies the vault password non-interactively instead of prompting, for CI and scripted use (`docker`, `k8s`, `run`, etc.) |
 | `ENVVAULT_CONFIG` | every command | Overrides the config file path, taking precedence over the default `~/.config/envvault/config.toml`. The `--config` flag takes precedence over this |
 | `ENVVAULT_REQUIRE_TRUST` | every command that reads a vault | When `1`/`true`/`yes`/`on`, a vault with no trust pin is a hard error instead of a warning. Equivalent to the global `--require-trust` flag |
-| `ENVVAULT_DEFAULT_PROVIDER` | startup (before any command runs) | Overrides the default encryption algorithm/provider (falls back to `aes256gcm-argon2id` if unset or unrecognized) |
+| `ENVVAULT_DEFAULT_PROVIDER` | startup (before any command runs) | Overrides the default encryption algorithm/provider (falls back to `aes256gcm-argon2id` if unset or unrecognized). An insecure algorithm is rejected with an error and exit 1 |
 | `AGE_IDENTITY` | commands operating on `age-pubkey` vaults | The Age private key itself (an `AGE-SECRET-KEY-...` string, not a file path) used to decrypt without a password. Falls back to `~/.envvault/keys.txt`, then `~/.config/age/keys.txt`, if unset |
-| `DEBUG` | startup (before any command runs) | Set to `1`/`true` to allow running under a debugger/tracer and to downgrade the insecure-default-provider check from a hard exit to a warning. Unset (or any other value) enforces both checks strictly |
+| `DEBUG` | startup (before any command runs) | Set to `1`/`true` to allow running under a debugger/tracer. Unset (or any other value) enforces the tracer check. (An insecure `ENVVAULT_DEFAULT_PROVIDER` is always rejected, regardless of `DEBUG`.) |
 | `VISUAL` / `EDITOR` | `envvault edit` | Selects the editor used to edit a decrypted vault in place (`VISUAL` takes precedence over `EDITOR`); standard Unix convention, not envvault-specific |
 
 **Examples:**

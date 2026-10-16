@@ -13,6 +13,8 @@ var (
 	from   string
 	to     string
 	output string
+
+	migrateAllowInsecure bool
 )
 
 var migrateCmd = &cobra.Command{
@@ -48,6 +50,13 @@ var migrateCmd = &cobra.Command{
 				return fmt.Errorf("unknown old algorithm %q: %w", from, err)
 			}
 		}
+		oldAlg, err := crypto.PeekAlgorithm(data)
+		if err != nil {
+			return err
+		}
+		if oldAlg == "age-pubkey" {
+			return fmt.Errorf("%s uses public-key encryption; migrate only converts password-based vaults (re-lock it with `envvault lock` instead)", filePath)
+		}
 		lockedPlaintext, err := crypto.DecryptSecure(data, password, oldProvider)
 		if err != nil {
 			return fmt.Errorf("decryption failed: %w", err)
@@ -56,19 +65,51 @@ var migrateCmd = &cobra.Command{
 
 		decrypted := lockedPlaintext.Bytes()
 
-		// 4. Encrypt with new algorithm
-		var newProvider crypto.Provider
-		if to != "" {
-			newProvider, err = crypto.GetProvider(to)
-			if err != nil {
-				return fmt.Errorf("unknown new algorithm %q: %w", to, err)
-			}
-		} else {
-			newProvider = oldProvider
+		// 4. Encrypt with the new algorithm; with no --to, keep the vault's
+		// current one rather than silently switching to the default.
+		newAlg := to
+		if newAlg == "" {
+			newAlg = oldAlg
 		}
-		encrypted, err := crypto.Encrypt(decrypted, password, newProvider)
+		newProvider, err := crypto.GetProvider(newAlg)
+		if err != nil {
+			return fmt.Errorf("unknown new algorithm %q: %w", newAlg, err)
+		}
+		if newAlg != oldAlg {
+			if err := requireSecureAlgorithm(newProvider, migrateAllowInsecure); err != nil {
+				return err
+			}
+		}
+		if newAlg == "age-pubkey" {
+			return fmt.Errorf("cannot migrate to age-pubkey: it needs recipients; use `envvault lock -r` instead")
+		}
+
+		// A Shamir source's credential is a list of shares; the secret they
+		// reconstruct is the original password.
+		newSecret := password
+		if oldAlg == "shamir-aes256gcm" {
+			threshold, err := crypto.DecodeShamirPayloadThreshold(data)
+			if err != nil {
+				return err
+			}
+			newSecret, err = crypto.ShamirSecretFromShares(password, threshold)
+			if err != nil {
+				return err
+			}
+			defer crypto.SecureWipe(newSecret)
+		}
+		if newAlg == "shamir-aes256gcm" {
+			newProvider = crypto.NewShamirProvider(5, 3)
+		}
+		encrypted, err := crypto.Encrypt(decrypted, newSecret, newProvider)
 		if err != nil {
 			return fmt.Errorf("encryption failed: %w", err)
+		}
+		if exporter, ok := newProvider.(crypto.ShareExporter); ok {
+			fmt.Fprintln(os.Stderr, "Shamir shares (store separately, each with a different holder):")
+			for i, s := range exporter.GeneratedShares() {
+				fmt.Fprintf(os.Stderr, "  share %d: %s\n", i+1, s)
+			}
 		}
 
 		// 5. Write back to file
@@ -110,6 +151,7 @@ var migrateCmd = &cobra.Command{
 func init() {
 	migrateCmd.Flags().StringVar(&from, "from", "", "Current encryption algorithm (optional, will auto-detect if not provided)")
 	migrateCmd.Flags().StringVar(&to, "to", "", "New encryption algorithm (optional, defaults to same as old)")
+	migrateCmd.Flags().BoolVar(&migrateAllowInsecure, "allow-insecure", false, "Allow migrating to an insecure algorithm (not recommended)")
 	migrateCmd.Flags().StringVar(&output, "output", "", "Output file for the migrated vault (optional)")
 
 	rootCmd.AddCommand(migrateCmd)

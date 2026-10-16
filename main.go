@@ -28,12 +28,12 @@ func main() {
 	}
 	if p, err := crypto.GetProvider(defaultProvider); err == nil {
 		if !p.Description().Secure {
-			if debugEnabled {
-				fmt.Printf("⚠️ Warning: The default provider %q is not secure. Consider switching to a more secure provider.\n", defaultProvider)
-			} else {
-				fmt.Printf("⚠️ Warning: The default provider %q is not secure. Set DEBUG=1 for more details.\n", defaultProvider)
-				os.Exit(1)
-			}
+			// An insecure default can't be selected through the environment,
+			// DEBUG or not: it would silently weaken every command that
+			// falls back to the default. Use `lock --allow-insecure -a ...`
+			// per vault instead.
+			fmt.Fprintf(os.Stderr, "Error: ENVVAULT_DEFAULT_PROVIDER=%q is not a secure algorithm and cannot be the default.\n", defaultProvider)
+			os.Exit(1)
 		}
 		crypto.SetDefault(defaultProvider)
 	}

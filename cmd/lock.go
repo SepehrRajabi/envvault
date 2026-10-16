@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,7 @@ var lockCmd = &cobra.Command{
 		}
 
 		var password []byte
+		defer func() { crypto.SecureWipe(password) }()
 
 		// Mode 1: Public Key Encryption
 		if len(recipient) > 0 {
@@ -56,7 +58,8 @@ var lockCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if string(password) != string(confirm) {
+			defer crypto.SecureWipe(confirm)
+			if !bytes.Equal(password, confirm) {
 				return fmt.Errorf("passwords do not match")
 			}
 
@@ -94,21 +97,20 @@ var lockCmd = &cobra.Command{
 			p = crypto.Default()
 		}
 
-		if !allowInsecure {
-			if !p.Description().Secure {
-				return fmt.Errorf("selected algorithm, %s, is not secure (use --allow-insecure to override)", p.AlgorithmID())
-			}
-		} else {
-			fmt.Printf("⚠️  Warning: --allow-insecure is set, allowing use of insecure algorithms (not recommended)")
+		if err := requireSecureAlgorithm(p, allowInsecure); err != nil {
+			return err
+		}
+		if allowInsecure {
+			fmt.Printf("⚠️  Warning: --allow-insecure is set, allowing use of insecure algorithms (not recommended)\n")
 			if p.Description().Secure {
-				fmt.Printf("Selected algorithm, %s, is considered secure", p.AlgorithmID())
+				fmt.Printf("Selected algorithm, %s, is considered secure\n", p.AlgorithmID())
 			} else {
-				fmt.Printf("Selected algorithm, %s, is NOT considered secure", p.AlgorithmID())
+				fmt.Printf("Selected algorithm, %s, is NOT considered secure\n", p.AlgorithmID())
 			}
-			fmt.Printf("Use envvault algorithms to see security ratings of available algorithms")
-			fmt.Printf("⚠️  Warning: Using an insecure algorithm may put your secrets at risk of compromise")
-			fmt.Printf("If you are unsure, use the default algorithm (no --algorithm flag) which is currently %s", crypto.Default().AlgorithmID())
-			fmt.Printf("⚠️  Warning: --allow-insecure should only be used for testing or compatibility with legacy data, not for new vaults")
+			fmt.Printf("Use envvault algorithms to see security ratings of available algorithms\n")
+			fmt.Printf("⚠️  Warning: Using an insecure algorithm may put your secrets at risk of compromise\n")
+			fmt.Printf("If you are unsure, use the default algorithm (no --algorithm flag) which is currently %s\n", crypto.Default().AlgorithmID())
+			fmt.Printf("⚠️  Warning: --allow-insecure should only be used for testing or compatibility with legacy data, not for new vaults\n")
 		}
 
 		encrypted, err := crypto.Encrypt(data, password, p)

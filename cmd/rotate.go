@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -28,6 +29,14 @@ var rotateCmd = &cobra.Command{
 
 		if err := enforceTrust(filePath, data); err != nil {
 			return err
+		}
+
+		alg, err := crypto.PeekAlgorithm(data)
+		if err != nil {
+			return err
+		}
+		if alg == "age-pubkey" {
+			return fmt.Errorf("%s uses public-key encryption and has no password to rotate; use `envvault keys add/remove` to change recipients", filePath)
 		}
 
 		// 2. Get the current credentials
@@ -70,7 +79,9 @@ var rotateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if string(newPassword) != string(confirm) {
+		defer crypto.SecureWipe(newPassword)
+		defer crypto.SecureWipe(confirm)
+		if !bytes.Equal(newPassword, confirm) {
 			return fmt.Errorf("new passwords do not match")
 		}
 
@@ -79,10 +90,28 @@ var rotateCmd = &cobra.Command{
 			return err
 		}
 
-		// 7. Re-encrypt with the new password, using the default algorithm
-		newCiphertext, err := crypto.Encrypt(decryped, newPassword)
+		// 7. Re-encrypt with the new password, keeping the vault's algorithm
+		// (rotating must not silently change it). For a Shamir vault the new
+		// "password" becomes the new shared secret, so new shares are issued.
+		var newProvider crypto.Provider
+		if alg == "shamir-aes256gcm" {
+			threshold, err := crypto.DecodeShamirPayloadThreshold(data)
+			if err != nil {
+				return err
+			}
+			newProvider = crypto.NewShamirProvider(max(5, threshold), threshold)
+		} else if newProvider, err = crypto.GetProvider(alg); err != nil {
+			return err
+		}
+		newCiphertext, err := crypto.Encrypt(decryped, newPassword, newProvider)
 		if err != nil {
 			return fmt.Errorf("re-encryption failed: %w", err)
+		}
+		if exporter, ok := newProvider.(crypto.ShareExporter); ok {
+			fmt.Fprintln(os.Stderr, "New Shamir shares (the old ones no longer unlock this vault):")
+			for i, s := range exporter.GeneratedShares() {
+				fmt.Fprintf(os.Stderr, "  share %d: %s\n", i+1, s)
+			}
 		}
 
 		// 8. Atomically overwrite the original file

@@ -155,6 +155,36 @@ func (s *ShamirAESGCMProvider) Decrypt(payload, password []byte) ([]byte, error)
 	return decryptAESGCMArgon2(ciphertext, secret, salt, nonce, s.Time, s.Memory, s.Threads)
 }
 
+// ShamirSecretFromShares reconstructs the secret from a Shamir vault's
+// credential input (comma/space/newline separated base64 shares) using the
+// first threshold shares, the same way Decrypt does. The caller must wipe the
+// result.
+func ShamirSecretFromShares(input []byte, threshold int) ([]byte, error) {
+	shares, err := parseSharesInput(input)
+	if err != nil {
+		return nil, err
+	}
+	if threshold < 2 || len(shares) < threshold {
+		return nil, fmt.Errorf("need at least %d shares, got %d", threshold, len(shares))
+	}
+	return combineShares(shares[:threshold])
+}
+
+// NewShamirProvider returns a shamir-aes256gcm provider with the standard
+// KDF parameters and the given split.
+func NewShamirProvider(shares, threshold int) *ShamirAESGCMProvider {
+	return &ShamirAESGCMProvider{
+		ID:        "shamir-aes256gcm",
+		Time:      3,
+		Memory:    64 * 1024,
+		Threads:   4,
+		SaltLen:   32,
+		NonceLen:  12,
+		Shares:    shares,
+		Threshold: threshold,
+	}
+}
+
 func parseSharesInput(input []byte) ([][]byte, error) {
 	raw := strings.TrimSpace(string(input))
 	if raw == "" {

@@ -134,32 +134,46 @@ var editCmd = &cobra.Command{
 				if err != nil {
 					return err
 				}
+				defer crypto.SecureWipe(newPassword)
 				confirm, err := crypto.GetPassword("Confirm new password: ")
 				if err != nil {
 					return err
 				}
-				if string(newPassword) != string(confirm) {
+				defer crypto.SecureWipe(confirm)
+				if !bytes.Equal(newPassword, confirm) {
 					return fmt.Errorf("passwords do not match")
 				}
 				if err := crypto.CheckPasswordStrength(newPassword, false); err != nil {
 					return err
 				}
+				p = crypto.Default()
 			}
 		} else {
-			// Standard password vault: reuse the same password!
-			newPassword = password
+			// Standard password vault: reuse the same credentials under the
+			// vault's existing algorithm.
+			var secret []byte
+			p, secret, err = reencryptionPlan(data, password)
+			if err != nil {
+				return err
+			}
+			newPassword = secret
+			if alg == "shamir-aes256gcm" {
+				defer crypto.SecureWipe(secret)
+			}
 		}
 
 		// 13. Re-encrypt
-		if p == nil {
-			p = crypto.Default()
-		}
 		encrypted, err := crypto.Encrypt(modified, newPassword, p)
 		if err != nil {
 			return fmt.Errorf("re-encrypting: %w", err)
 		}
 
-		// 14. Atomically write back to the vault file
+		// 14. Atomically write back to the vault file, unless it changed on
+		// disk while we were editing (we'd silently discard that change, or
+		// overwrite a file someone substituted).
+		if current, err := os.ReadFile(filePath); err != nil || !bytes.Equal(current, data) {
+			return fmt.Errorf("%s changed on disk while editing; refusing to overwrite it (your edits were not saved)", filePath)
+		}
 		if err := atomicWrite(filePath, encrypted); err != nil {
 			return fmt.Errorf("writing vault: %w", err)
 		}

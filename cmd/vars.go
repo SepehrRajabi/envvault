@@ -48,8 +48,8 @@ func (d *loadedEnvDocument) Save(content []byte, recipients []string) error {
 		return atomicWrite(d.Path, content)
 	}
 
-	password := d.Password
-	provider := d.Provider
+	var password []byte
+	var provider crypto.Provider
 	if d.Algorithm == "age-pubkey" {
 		if len(recipients) == 0 {
 			return fmt.Errorf("vault uses age-pubkey encryption; pass one or more --recipient/-r values to re-encrypt after modifying")
@@ -59,6 +59,17 @@ func (d *loadedEnvDocument) Save(content []byte, recipients []string) error {
 		provider, err = crypto.GetProvider("age-pubkey")
 		if err != nil {
 			return err
+		}
+	} else {
+		// Keep the vault's own algorithm (and, for Shamir, its secret so
+		// existing shares stay valid).
+		var err error
+		provider, password, err = reencryptionPlan(d.Data, d.Password)
+		if err != nil {
+			return err
+		}
+		if d.Algorithm == "shamir-aes256gcm" {
+			defer crypto.SecureWipe(password)
 		}
 	}
 
@@ -70,16 +81,6 @@ func (d *loadedEnvDocument) Save(content []byte, recipients []string) error {
 		return fmt.Errorf("writing %s: %w", d.Path, err)
 	}
 	refreshTrustPin(d.Path, encrypted)
-
-	if shareProvider, ok := provider.(crypto.ShareExporter); ok {
-		shares := shareProvider.GeneratedShares()
-		if len(shares) > 0 {
-			fmt.Fprintln(os.Stderr, "Shamir shares for the updated vault (store separately):")
-			for i, share := range shares {
-				fmt.Fprintf(os.Stderr, "  share %d: %s\n", i+1, share)
-			}
-		}
-	}
 
 	return nil
 }

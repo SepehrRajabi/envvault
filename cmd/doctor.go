@@ -190,7 +190,7 @@ func checkMemoryLock() doctorCheck {
 
 // checkDebugMode reports whether DEBUG is set and, if so, its raw value —
 // this mirrors main.go's own DEBUG=1/true parsing (see isDebugEnabled),
-// which controls both the tracer check and the insecure-provider warning.
+// which controls the tracer check.
 func checkDebugMode() doctorCheck {
 	raw := debugEnvValue()
 	if raw == "" {
@@ -198,7 +198,7 @@ func checkDebugMode() doctorCheck {
 	}
 	if isDebugEnabled() {
 		return doctorCheck{Name: "Debug mode", Warn: true, Detail: fmt.Sprintf("DEBUG=%s (enabled)", raw),
-			Hint: "tracer detection and insecure-provider checks are bypassed while DEBUG is set"}
+			Hint: "tracer detection is bypassed while DEBUG is set"}
 	}
 	return doctorCheck{Name: "Debug mode", Warn: true, Detail: fmt.Sprintf("DEBUG=%s (set, but not truthy — disabled)", raw)}
 }

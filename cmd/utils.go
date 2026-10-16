@@ -185,6 +185,48 @@ func refreshTrustPin(filePath string, encrypted []byte) {
 	}
 }
 
+// reencryptionPlan returns the provider and secret to use when re-encrypting
+// a modified vault *under its existing algorithm* (edit, set/unset/rename).
+// Re-encrypting with the default provider would silently change a vault's
+// algorithm. The secret is the vault password, except for Shamir vaults where
+// it's the reconstructed shared secret, so the shares holders already have
+// keep working. Not for age-pubkey vaults, which callers handle through
+// recipients. The caller must wipe the returned secret if it differs from
+// password.
+func reencryptionPlan(data, password []byte) (crypto.Provider, []byte, error) {
+	alg, err := crypto.PeekAlgorithm(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch alg {
+	case "age-pubkey":
+		return nil, nil, fmt.Errorf("age-pubkey vaults are re-encrypted through their recipients")
+	case "shamir-aes256gcm":
+		threshold, err := crypto.DecodeShamirPayloadThreshold(data)
+		if err != nil {
+			return nil, nil, err
+		}
+		secret, err := crypto.ShamirSecretFromShares(password, threshold)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reconstructing shamir secret: %w", err)
+		}
+		return crypto.NewShamirProvider(max(5, threshold), threshold), secret, nil
+	}
+	p, err := crypto.GetProvider(alg)
+	if err != nil {
+		return nil, nil, err
+	}
+	return p, password, nil
+}
+
+// requireSecureAlgorithm refuses insecure providers unless allowInsecure.
+func requireSecureAlgorithm(p crypto.Provider, allowInsecure bool) error {
+	if !allowInsecure && !p.Description().Secure {
+		return fmt.Errorf("selected algorithm, %s, is not secure (use --allow-insecure to override)", p.AlgorithmID())
+	}
+	return nil
+}
+
 // getVaultCredentials determines if a vault requires a password or a private key
 // and returns the appropriate credential (or empty byte slice for pubkey vaults).
 // It first checks the OS keyring for a stored key for this file before prompting the user.
