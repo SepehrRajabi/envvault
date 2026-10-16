@@ -2,11 +2,13 @@ package crypto
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/nbutton23/zxcvbn-go"
 	"golang.org/x/crypto/argon2"
@@ -26,17 +28,49 @@ func RandomBytes(n int) ([]byte, error) {
 	return b, err
 }
 
+// stdinReader is shared across readPassword calls so that several passwords
+// piped in sequence (e.g. password then confirmation) are read as successive
+// lines without a per-call bufio.Reader swallowing the later ones. It's
+// rebuilt if os.Stdin has been replaced.
+var (
+	stdinMu     sync.Mutex
+	stdinFile   *os.File
+	stdinReader *bufio.Reader
+)
+
+// readPipedLine reads one line from non-terminal stdin and returns it
+// verbatim, minus the line terminator. Unlike fmt.Fscanln it doesn't split
+// on whitespace, so passwords containing spaces or tabs are preserved.
+func readPipedLine() ([]byte, error) {
+	stdinMu.Lock()
+	defer stdinMu.Unlock()
+
+	if stdinReader == nil || stdinFile != os.Stdin {
+		stdinFile = os.Stdin
+		stdinReader = bufio.NewReader(os.Stdin)
+	}
+
+	line, err := stdinReader.ReadBytes('\n')
+	if err != nil && (err != io.EOF || len(line) == 0) {
+		if err == io.EOF {
+			return nil, fmt.Errorf("reading password: no input on stdin")
+		}
+		return nil, fmt.Errorf("reading password: %w", err)
+	}
+	line = bytes.TrimSuffix(line, []byte("\n"))
+	line = bytes.TrimSuffix(line, []byte("\r"))
+	if len(line) == 0 {
+		return nil, fmt.Errorf("password cannot be empty")
+	}
+	return line, nil
+}
+
 func readPassword(prompt string) ([]byte, error) {
 	fd := int(os.Stdin.Fd())
 
-	// If stdin isn't a terminal (e.g., piped), read it normally
+	// If stdin isn't a terminal (e.g., piped), read a full line
 	if !term.IsTerminal(fd) {
-		var line string
-		_, err := fmt.Fscanln(os.Stdin, &line)
-		if err != nil && err.Error() != "unexpected newline" {
-			return nil, err
-		}
-		return []byte(line), nil
+		return readPipedLine()
 	}
 
 	fmt.Fprint(os.Stderr, prompt)
