@@ -228,7 +228,7 @@ func isVaultFile(path string, data []byte) bool {
 		return true
 	}
 	// Fallback: check the envelope version byte
-	if len(data) > 0 && data[0] == 1 {
+	if len(data) > 0 && (data[0] == 1 || data[0] == 2) {
 		return true
 	}
 	return false

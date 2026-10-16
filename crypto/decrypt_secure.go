@@ -8,42 +8,16 @@ import (
 // The returned LockedBytes must be explicitly unlocked when done.
 // This provides stronger protection against memory swapping compared to regular Decrypt.
 func DecryptSecure(data, password []byte, p Provider) (*LockedBytes, error) {
-	hdrp, payload, err := parseEnvelope(data)
+	plaintext, raw, _, err := decryptEnvelope(data, password)
 	if err != nil {
 		return nil, err
 	}
-	hdr := *hdrp
+	defer SecureWipe(raw)
 
-	// Lookup provider
-	prov, err := GetProvider(hdr.Algorithm)
-	if err != nil {
-		return nil, fmt.Errorf("vault uses algorithm %q which is not available: %w",
-			hdr.Algorithm, err)
-	}
-
-	plaintext, err := prov.Decrypt(payload, password)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt: %w", err)
-	}
-
-	// Verify integrity before locking in memory
-	if !checksumMatches(plaintext, hdr.Checksum) {
-		// Securely wipe the unverified plaintext
-		SecureWipe(plaintext)
-		return nil, fmt.Errorf("checksum mismatch: data corrupted or wrong password")
-	}
-
-	// Lock the verified plaintext in memory
 	lockedPlaintext, err := NewLockedBytesFrom(plaintext)
 	if err != nil {
-		// Securely wipe the plaintext if locking fails
-		SecureWipe(plaintext)
 		return nil, fmt.Errorf("failed to lock plaintext in memory: %w", err)
 	}
-
-	// Securely wipe the temporary plaintext copy
-	SecureWipe(plaintext)
-
 	return lockedPlaintext, nil
 }
 
@@ -137,51 +111,26 @@ type DecryptedEnv struct {
 
 // DecryptWithMetadata decrypts data, returns plaintext in locked memory along with envelope metadata.
 func DecryptWithMetadata(data, password []byte, p Provider) (*DecryptedEnv, error) {
-	hdrp, payload, err := parseEnvelope(data)
+	plaintext, raw, hdr, err := decryptEnvelope(data, password)
 	if err != nil {
 		return nil, err
 	}
-	hdr := *hdrp
+	defer SecureWipe(raw)
 
-	// Lookup provider
-	prov, err := GetProvider(hdr.Algorithm)
-	if err != nil {
-		return nil, fmt.Errorf("vault uses algorithm %q which is not available: %w",
-			hdr.Algorithm, err)
-	}
-
-	plaintext, err := prov.Decrypt(payload, password)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt: %w", err)
-	}
-
-	// Verify integrity
-	if !checksumMatches(plaintext, hdr.Checksum) {
-		SecureWipe(plaintext)
-		return nil, fmt.Errorf("checksum mismatch: data corrupted or wrong password")
-	}
-
-	// Lock the plaintext
 	lockedPlaintext, err := NewLockedBytesFrom(plaintext)
 	if err != nil {
-		SecureWipe(plaintext)
 		return nil, fmt.Errorf("failed to lock plaintext in memory: %w", err)
 	}
 
-	SecureWipe(plaintext)
-
-	// Make a copy of the header to return
-	headerCopy := &envelopeHeader{
-		Version:        hdr.Version,
-		Algorithm:      hdr.Algorithm,
-		Checksum:       hdr.Checksum,
-		ProviderParams: hdr.ProviderParams,
-		Commit:         hdr.Commit,
-	}
-
 	return &DecryptedEnv{
-		Data:   lockedPlaintext,
-		Header: headerCopy,
+		Data: lockedPlaintext,
+		Header: &envelopeHeader{
+			Version:        hdr.Version,
+			Algorithm:      hdr.Algorithm,
+			Checksum:       hdr.Checksum,
+			ProviderParams: hdr.ProviderParams,
+			Commit:         hdr.Commit,
+		},
 	}, nil
 }
 

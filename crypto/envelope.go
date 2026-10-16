@@ -9,12 +9,10 @@ import (
 	"fmt"
 )
 
-const currentVersion = 1
-
 type envelopeHeader struct {
 	Version   uint8  `json:"v"`
 	Algorithm string `json:"alg"`
-	Checksum  string `json:"chk"` // SHA256 of plaintext, hex
+	Checksum  string `json:"chk"` // v2: HMAC-SHA256 tag, hex (v1: SHA-256 of plaintext)
 	// ProviderParams is optional extra metadata from the provider
 	ProviderParams map[string]any `json:"params,omitempty"`
 	// Commit is optional git commit metadata captured at encryption time.
@@ -42,7 +40,7 @@ func splitEnvelope(data []byte) (hdrJSON, payload []byte, err error) {
 	if len(data) < 1 {
 		return nil, nil, fmt.Errorf("empty input")
 	}
-	if data[0] != currentVersion {
+	if data[0] != legacyVersion && data[0] != currentVersion {
 		return nil, nil, fmt.Errorf("unsupported version: %d", data[0])
 	}
 	if len(data) < 5 {
@@ -62,9 +60,13 @@ func parseEnvelope(data []byte) (*envelopeHeader, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	hdrVersion := data[0]
 	var h envelopeHeader
 	if err := json.Unmarshal(hdrJSON, &h); err != nil {
 		return nil, nil, fmt.Errorf("parsing envelope: %w", err)
+	}
+	if h.Version != hdrVersion {
+		return nil, nil, fmt.Errorf("corrupted data: header version %d does not match envelope version %d", h.Version, hdrVersion)
 	}
 	return &h, payload, nil
 }
@@ -81,18 +83,24 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 		}
 	}
 
-	// Get algorithm-specific payload
-	payload, err := p.Encrypt(plaintext, password)
+	// The provider encrypts macKey||plaintext, so the MAC key is only ever
+	// recoverable by someone who can decrypt the vault.
+	inner, macKey, err := sealInner(plaintext)
+	if err != nil {
+		return nil, err
+	}
+	defer SecureWipe(inner)
+	defer SecureWipe(macKey)
+
+	payload, err := p.Encrypt(inner, password)
 	if err != nil {
 		return nil, fmt.Errorf("provider %s encrypt: %w", p.AlgorithmID(), err)
 	}
 
 	// Build envelope
-	checksum := sha256.Sum256(plaintext)
 	hdr := envelopeHeader{
 		Version:   currentVersion,
 		Algorithm: p.AlgorithmID(),
-		Checksum:  fmt.Sprintf("%x", checksum[:]),
 	}
 
 	if md, ok := p.(ProviderMetadata); ok {
@@ -101,6 +109,10 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 
 	if commitMeta, err := GetGitCommitMetadata(); err == nil && commitMeta != nil {
 		hdr.Commit = commitMeta
+	}
+
+	if hdr.Checksum, err = headerMAC(macKey, &hdr, plaintext); err != nil {
+		return nil, err
 	}
 
 	hdrJSON, err := json.Marshal(hdr)
@@ -124,29 +136,13 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 // memory, making it vulnerable to swapping to disk. DecryptSecure returns plaintext locked
 // in RAM, preventing OS swap attacks.
 func Decrypt(data, password []byte, p Provider) ([]byte, error) {
-	hdr, payload, err := parseEnvelope(data)
+	plaintext, raw, _, err := decryptEnvelope(data, password)
 	if err != nil {
 		return nil, err
 	}
-
-	// Lookup provider
-	p, err = GetProvider(hdr.Algorithm)
-	if err != nil {
-		return nil, fmt.Errorf("vault uses algorithm %q which is not available: %w",
-			hdr.Algorithm, err)
-	}
-
-	plaintext, err := p.Decrypt(payload, password)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt: %w", err)
-	}
-
-	// Verify integrity
-	if !checksumMatches(plaintext, hdr.Checksum) {
-		return nil, fmt.Errorf("checksum mismatch: data corrupted or wrong password")
-	}
-
-	return plaintext, nil
+	out := append([]byte(nil), plaintext...)
+	SecureWipe(raw)
+	return out, nil
 }
 
 // PeekAlgorithm reads just the envelope header to determine what algorithm was used.
