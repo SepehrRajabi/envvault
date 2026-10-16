@@ -3,7 +3,6 @@ package crypto
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -344,14 +343,13 @@ func gfDiv(a, b byte) byte {
 // DecodeShamirPayloadThreshold reads the threshold from a shamir payload.
 // Data is expected to be the full vault bytes with envelope.
 func DecodeShamirPayloadThreshold(data []byte) (int, error) {
-	if len(data) < 5 {
-		return 0, fmt.Errorf("corrupted data: incomplete header")
+	_, payload, err := splitEnvelope(data)
+	if err != nil {
+		return 0, err
 	}
-	hdrLen := binary.BigEndian.Uint32(data[1:5])
-	if len(data) < int(5+hdrLen+2) {
+	if len(payload) < 2 {
 		return 0, fmt.Errorf("corrupted data: missing shamir payload")
 	}
-	payload := data[5+hdrLen:]
 	if payload[0] != shamirPayloadVersion {
 		return 0, fmt.Errorf("unsupported shamir payload version: %d", payload[0])
 	}

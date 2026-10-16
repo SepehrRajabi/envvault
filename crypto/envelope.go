@@ -35,6 +35,40 @@ func checksumMatches(plaintext []byte, hexChecksum string) bool {
 	return subtle.ConstantTimeCompare(got[:], want) == 1
 }
 
+// splitEnvelope returns the raw header bytes and provider payload of a vault
+// without parsing the header. hdrLen comes from the (untrusted) file, so the
+// bounds check is done in uint64 to avoid uint32 wraparound.
+func splitEnvelope(data []byte) (hdrJSON, payload []byte, err error) {
+	if len(data) < 1 {
+		return nil, nil, fmt.Errorf("empty input")
+	}
+	if data[0] != currentVersion {
+		return nil, nil, fmt.Errorf("unsupported version: %d", data[0])
+	}
+	if len(data) < 5 {
+		return nil, nil, fmt.Errorf("corrupted data: incomplete header")
+	}
+	hdrLen := uint64(binary.BigEndian.Uint32(data[1:5]))
+	if hdrLen > uint64(len(data)-5) {
+		return nil, nil, fmt.Errorf("corrupted data: header truncated")
+	}
+	end := 5 + int(hdrLen)
+	return data[5:end], data[end:], nil
+}
+
+// parseEnvelope splits a vault and decodes its header.
+func parseEnvelope(data []byte) (*envelopeHeader, []byte, error) {
+	hdrJSON, payload, err := splitEnvelope(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	var h envelopeHeader
+	if err := json.Unmarshal(hdrJSON, &h); err != nil {
+		return nil, nil, fmt.Errorf("parsing envelope: %w", err)
+	}
+	return &h, payload, nil
+}
+
 // Encrypt uses the specified provider (or default) to encrypt data.
 func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 	var p Provider
@@ -90,38 +124,18 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 // memory, making it vulnerable to swapping to disk. DecryptSecure returns plaintext locked
 // in RAM, preventing OS swap attacks.
 func Decrypt(data, password []byte, p Provider) ([]byte, error) {
-	if len(data) < 1 {
-		return nil, fmt.Errorf("empty input")
-	}
-
-	version := data[0]
-
-	if version != currentVersion {
-		return nil, fmt.Errorf("unsupported version: %d", version)
-	}
-
-	if len(data) < 5 {
-		return nil, fmt.Errorf("corrupted data: incomplete header")
-	}
-
-	hdrLen := binary.BigEndian.Uint32(data[1:5])
-	if len(data) < int(5+hdrLen) {
-		return nil, fmt.Errorf("corrupted data: header truncated")
-	}
-
-	var hdr envelopeHeader
-	if err := json.Unmarshal(data[5:5+hdrLen], &hdr); err != nil {
-		return nil, fmt.Errorf("parsing envelope: %w", err)
+	hdr, payload, err := parseEnvelope(data)
+	if err != nil {
+		return nil, err
 	}
 
 	// Lookup provider
-	p, err := GetProvider(hdr.Algorithm)
+	p, err = GetProvider(hdr.Algorithm)
 	if err != nil {
 		return nil, fmt.Errorf("vault uses algorithm %q which is not available: %w",
 			hdr.Algorithm, err)
 	}
 
-	payload := data[5+hdrLen:]
 	plaintext, err := p.Decrypt(payload, password)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt: %w", err)
@@ -138,26 +152,9 @@ func Decrypt(data, password []byte, p Provider) ([]byte, error) {
 // PeekAlgorithm reads just the envelope header to determine what algorithm was used.
 // This is useful for deciding whether to prompt for a password before decryption.
 func PeekAlgorithm(data []byte) (string, error) {
-	if len(data) < 1 {
-		return "", fmt.Errorf("empty input")
-	}
-
-	if data[0] != currentVersion {
-		return "", fmt.Errorf("unsupported vault version: %d", data[0])
-	}
-
-	if len(data) < 5 {
-		return "", fmt.Errorf("corrupted data: incomplete header")
-	}
-
-	hdrLen := binary.BigEndian.Uint32(data[1:5])
-	if len(data) < int(5+hdrLen) {
-		return "", fmt.Errorf("corrupted data: header truncated")
-	}
-
-	var hdr envelopeHeader
-	if err := json.Unmarshal(data[5:5+hdrLen], &hdr); err != nil {
-		return "", fmt.Errorf("parsing envelope: %w", err)
+	hdr, _, err := parseEnvelope(data)
+	if err != nil {
+		return "", err
 	}
 
 	return hdr.Algorithm, nil
@@ -166,26 +163,9 @@ func PeekAlgorithm(data []byte) (string, error) {
 // Verify checks the structural integrity of a vault file without requiring a password.
 // It validates the version, header, algorithm, and payload existence.
 func Verify(data []byte) (*envelopeHeader, error) {
-	if len(data) < 1 {
-		return nil, fmt.Errorf("empty input")
-	}
-
-	if data[0] != currentVersion {
-		return nil, fmt.Errorf("unsupported vault version: %d", data[0])
-	}
-
-	if len(data) < 5 {
-		return nil, fmt.Errorf("corrupted data: incomplete header length")
-	}
-
-	hdrLen := binary.BigEndian.Uint32(data[1:5])
-	if len(data) < int(5+hdrLen) {
-		return nil, fmt.Errorf("corrupted data: header truncated")
-	}
-
-	var hdr envelopeHeader
-	if err := json.Unmarshal(data[5:5+hdrLen], &hdr); err != nil {
-		return nil, fmt.Errorf("corrupted data: invalid header JSON: %w", err)
+	hdr, payload, err := parseEnvelope(data)
+	if err != nil {
+		return nil, err
 	}
 
 	if hdr.Algorithm == "" {
@@ -195,9 +175,12 @@ func Verify(data []byte) (*envelopeHeader, error) {
 	if hdr.Checksum == "" {
 		return nil, fmt.Errorf("corrupted data: missing checksum in header")
 	}
+	if raw, err := hex.DecodeString(hdr.Checksum); err != nil || len(raw) != sha256.Size {
+		return nil, fmt.Errorf("corrupted data: malformed checksum in header")
+	}
 
 	// Verify payload actually exists
-	if len(data) <= int(5+hdrLen) {
+	if len(payload) == 0 {
 		return nil, fmt.Errorf("corrupted data: missing payload")
 	}
 
@@ -206,5 +189,5 @@ func Verify(data []byte) (*envelopeHeader, error) {
 		return nil, fmt.Errorf("vault uses unknown algorithm %q (provider not registered)", hdr.Algorithm)
 	}
 
-	return &hdr, nil
+	return hdr, nil
 }

@@ -1,8 +1,6 @@
 package crypto
 
 import (
-	"encoding/binary"
-	"encoding/json"
 	"fmt"
 )
 
@@ -10,29 +8,11 @@ import (
 // The returned LockedBytes must be explicitly unlocked when done.
 // This provides stronger protection against memory swapping compared to regular Decrypt.
 func DecryptSecure(data, password []byte, p Provider) (*LockedBytes, error) {
-	if len(data) < 1 {
-		return nil, fmt.Errorf("empty input")
+	hdrp, payload, err := parseEnvelope(data)
+	if err != nil {
+		return nil, err
 	}
-
-	version := data[0]
-
-	if version != currentVersion {
-		return nil, fmt.Errorf("unsupported version: %d", version)
-	}
-
-	if len(data) < 5 {
-		return nil, fmt.Errorf("corrupted data: incomplete header")
-	}
-
-	hdrLen := binary.BigEndian.Uint32(data[1:5])
-	if len(data) < int(5+hdrLen) {
-		return nil, fmt.Errorf("corrupted data: header truncated")
-	}
-
-	var hdr envelopeHeader
-	if err := json.Unmarshal(data[5:5+hdrLen], &hdr); err != nil {
-		return nil, fmt.Errorf("parsing envelope: %w", err)
-	}
+	hdr := *hdrp
 
 	// Lookup provider
 	prov, err := GetProvider(hdr.Algorithm)
@@ -41,7 +21,6 @@ func DecryptSecure(data, password []byte, p Provider) (*LockedBytes, error) {
 			hdr.Algorithm, err)
 	}
 
-	payload := data[5+hdrLen:]
 	plaintext, err := prov.Decrypt(payload, password)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt: %w", err)
@@ -158,29 +137,11 @@ type DecryptedEnv struct {
 
 // DecryptWithMetadata decrypts data, returns plaintext in locked memory along with envelope metadata.
 func DecryptWithMetadata(data, password []byte, p Provider) (*DecryptedEnv, error) {
-	if len(data) < 1 {
-		return nil, fmt.Errorf("empty input")
+	hdrp, payload, err := parseEnvelope(data)
+	if err != nil {
+		return nil, err
 	}
-
-	version := data[0]
-
-	if version != currentVersion {
-		return nil, fmt.Errorf("unsupported version: %d", version)
-	}
-
-	if len(data) < 5 {
-		return nil, fmt.Errorf("corrupted data: incomplete header")
-	}
-
-	hdrLen := binary.BigEndian.Uint32(data[1:5])
-	if len(data) < int(5+hdrLen) {
-		return nil, fmt.Errorf("corrupted data: header truncated")
-	}
-
-	var hdr envelopeHeader
-	if err := json.Unmarshal(data[5:5+hdrLen], &hdr); err != nil {
-		return nil, fmt.Errorf("parsing envelope: %w", err)
-	}
+	hdr := *hdrp
 
 	// Lookup provider
 	prov, err := GetProvider(hdr.Algorithm)
@@ -189,7 +150,6 @@ func DecryptWithMetadata(data, password []byte, p Provider) (*DecryptedEnv, erro
 			hdr.Algorithm, err)
 	}
 
-	payload := data[5+hdrLen:]
 	plaintext, err := prov.Decrypt(payload, password)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt: %w", err)

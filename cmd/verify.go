@@ -29,7 +29,7 @@ var verifyCmd = &cobra.Command{
 		fmt.Printf("✅ Valid vault\n")
 		fmt.Printf("   Version:   %d\n", info.Version)
 		fmt.Printf("   Algorithm: %s\n", info.Algorithm)
-		fmt.Printf("   Checksum:  %s...\n", info.Checksum[:16])
+		fmt.Printf("   Checksum:  %s...\n", info.Checksum[:min(16, len(info.Checksum))])
 		if info.Commit != nil {
 			fmt.Printf("   Git commit: %s\n", info.Commit.Hash)
 			fmt.Printf("   Commit signer: %s\n", info.Commit.Signer)

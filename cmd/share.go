@@ -29,7 +29,7 @@ Supports multiple ways to specify variables:
 
 The output is a base64 string prefixed with 'evlt://' that can be shared via any channel.
 The recipient can decrypt it with: envvault receive <base64_string>`,
-	Args: cobra.ArbitraryArgs,
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if shareWith == "" {
 			return fmt.Errorf("--with flag is required (recipient's Age public key)")
@@ -74,10 +74,7 @@ The recipient can decrypt it with: envvault receive <base64_string>`,
 				return nil, err
 			}
 
-			recipientKeys := hdr.ProviderParams["recipients"].([]map[string]any)
-			if !slices.ContainsFunc(recipientKeys, func(key map[string]any) bool {
-				return key["recipient"] == shareWith
-			}) {
+			if !slices.Contains(crypto.RecipientsFromHeader(hdr), shareWith) {
 				return nil, fmt.Errorf("the file %s is not encrypted for the recipient %s", filePath, shortenPublicKey(shareWith))
 			}
 

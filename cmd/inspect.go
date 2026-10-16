@@ -111,7 +111,7 @@ var inspectCmd = &cobra.Command{
 		fmt.Printf("   Algorithm:       %s\n", hdr.Algorithm)
 		fmt.Printf("   Secure:          %s\n", secure)
 		fmt.Printf("   Authentication:  %s\n", authMethod)
-		fmt.Printf("   Checksum:        %s...\n", hdr.Checksum[:16])
+		fmt.Printf("   Checksum:        %s...\n", hdr.Checksum[:min(16, len(hdr.Checksum))])
 
 		for _, recipient := range recipients {
 			fmt.Printf("   Recipient:       %s\n", recipient)
