@@ -13,6 +13,7 @@ import (
 	"github.com/SepehrRajabi/envvault/crypto"
 	"github.com/SepehrRajabi/envvault/envfile"
 	"github.com/SepehrRajabi/envvault/history"
+	"github.com/SepehrRajabi/envvault/keyring"
 	"github.com/spf13/cobra"
 )
 
@@ -156,19 +157,39 @@ func isCredentialEnvVar(name string) bool {
 	return false
 }
 
-// runCredentials returns the credential for a vault in locked memory:
+// runCredentials returns the credential for a vault in locked memory, using
+// the same sources and order as the other commands (getVaultCredentials):
 // nothing for age-pubkey vaults (the identity is looked up by the provider),
-// ENVVAULT_PASSWORD when set, otherwise an interactive prompt.
+// then the OS keyring, then ENVVAULT_PASSWORD, then an interactive prompt.
+// Shamir vaults are prompted for their shares. Unlike getVaultCredentials, an
+// interactively typed secret goes straight into locked memory.
 func runCredentials(data []byte, filePath string) (*crypto.LockedBytes, error) {
-	if alg, _ := crypto.PeekAlgorithm(data); alg == "age-pubkey" {
+	alg, _ := crypto.PeekAlgorithm(data)
+	if alg == "age-pubkey" {
 		return crypto.NewLockedBytesFrom(nil)
 	}
+
+	if stored, err := keyring.RetrieveKey(filePath); err == nil && stored != "" {
+		b := []byte(stored)
+		defer crypto.SecureWipe(b)
+		return crypto.NewLockedBytesFrom(b)
+	}
+
 	if pw := os.Getenv("ENVVAULT_PASSWORD"); pw != "" {
 		b := []byte(pw)
 		defer crypto.SecureWipe(b)
 		return crypto.NewLockedBytesFrom(b)
 	}
-	return crypto.GetPasswordLocked("Enter password for " + filePath + ": ")
+
+	prompt := "Enter password for " + filePath + ": "
+	if alg == "shamir-aes256gcm" {
+		threshold, err := crypto.DecodeShamirPayloadThreshold(data)
+		if err != nil {
+			return nil, err
+		}
+		prompt = fmt.Sprintf("Enter Shamir shares for %s (base64, comma-separated; need at least %d): ", filePath, threshold)
+	}
+	return crypto.GetPasswordLocked(prompt)
 }
 
 func init() {

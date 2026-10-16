@@ -26,8 +26,9 @@ Encrypted `.env` file manager. Lock, unlock, diff, and share environment variabl
 8. [Environment Variables](#environment-variables)
 9. [Common Workflows](#common-workflows)
 10. [Security Considerations](#security-considerations)
-11. [Limitations & Roadmap](#limitations--roadmap)
-12. [Contributing](#contributing)
+11. [Vault Format Versions](#vault-format-versions)
+12. [Limitations & Roadmap](#limitations--roadmap)
+13. [Contributing](#contributing)
 
 ---
 
@@ -124,6 +125,8 @@ envvault decrypt [vault-file]
 **Details:**
 
 - Checks the vault against its pinned [trust](#trust) record (if any) before decrypting, to detect a file substituted on disk
+- The decrypted file is written with mode `0600`; envvault refuses to write through a symlink
+- With `--request-access`, submitted shares are kept in `~/.envvault/quorum/` (mode `0700`, one `0600` file per vault) until the threshold is reached, then deleted. Prefer the prompt over `--share`, which is visible in the process list and shell history
 
 **Examples:**
 
@@ -301,11 +304,25 @@ Export environment variables from a vault in shell format.
 envvault export [vault-file]
 ```
 
+**Flags:**
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--shell` | Print shell-safe `export KEY='value'` lines (every value single-quoted), suitable for `eval` | — |
+
+**Details:**
+
+- Without `--shell`, the output is the raw dotenv text with values unquoted. That is **not safe to `eval`**: a value such as `$(command)`, a backtick expression or `a; b` would be executed or split by the shell. Use `--shell` whenever the output goes to a shell
+- With `--shell`, variable names must be plain identifiers (`[A-Za-z_][A-Za-z0-9_]*`)
+
 **Examples:**
 
 ```bash
-# Export as shell commands
-eval $(envvault export .env.vault)
+# Load into the current shell
+eval "$(envvault export .env.vault --shell)"
+
+# Raw dotenv text (for files or other tools, never for eval)
+envvault export .env.vault > .env.local
 ```
 
 ---
@@ -787,7 +804,7 @@ envvault run .env.prod.vault -- docker-compose up
 
 **Notes:**
 
-- The password comes from `ENVVAULT_PASSWORD` if set, otherwise an interactive prompt. `age-pubkey` vaults need no password; the Age identity is found as described under `AGE_IDENTITY`.
+- Credentials are found the same way as for `unlock`/`export`: the OS keyring entry from `envvault login` first, then `ENVVAULT_PASSWORD`, then an interactive prompt. `shamir-aes256gcm` vaults are prompted for their shares. `age-pubkey` vaults need no password; the Age identity is found as described under `AGE_IDENTITY`.
 - The child process inherits your environment **except** `ENVVAULT_PASSWORD` and `AGE_IDENTITY`, so the command being run (and anything it spawns) can't read your vault password or Age private key. A variable with one of those names defined *inside* the vault is still injected.
 
 ---
@@ -1497,12 +1514,27 @@ envvault follows a local-first, zero-trust philosophy. All encryption and decryp
 
 for more info, see [SECURITY](SECURITY.md)
 
+## Vault Format Versions
+
+Vaults carry an envelope version in their first byte and header.
+
+| Version | Written by | Integrity tag | Notes |
+| --- | --- | --- | --- |
+| 1 | envvault 0.0.4 and earlier | Unkeyed SHA-256 of the plaintext in the cleartext header | Still readable. Anyone holding the file could confirm guesses at its contents |
+| 2 | current | HMAC-SHA256 under a random per-vault key stored *inside* the encrypted payload, covering the algorithm, recipients, commit metadata and plaintext | **Not readable by older envvault binaries** |
+
+Version 1 vaults are upgraded to version 2 automatically the next time they
+are re-encrypted (`edit`, `rotate`, `set`/`unset`/`rename`, `keys add`/`remove`,
+`migrate`). `envvault verify` and `inspect` show the version. If you share
+vaults with teammates or CI, upgrade envvault everywhere before re-encrypting
+a shared vault.
+
 ## Limitations & Roadmap
 
 ### Current Limitations
 
-- Temporary files are used during `edit` (deleted after use, but still a theoretical risk)
-- Shamir shares are written to disk by default
+- Temporary files are used during `edit` (kept in a private `0700` directory on tmpfs where available and deleted afterwards, but still a theoretical risk)
+- Shamir shares are printed to the terminal, and written to disk only with `--shares-dir`; submitted quorum shares are stored in `~/.envvault/quorum/` until the quorum completes
 - Limited real-world battle testing
 
 ### Roadmap

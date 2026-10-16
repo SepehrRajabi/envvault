@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/homedir"
 	"github.com/SepehrRajabi/envvault/keyring"
 )
 
@@ -77,9 +78,15 @@ func quorumStatePath(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	home, err := homedir.Dir()
+	if err != nil {
+		return "", fmt.Errorf("finding home directory: %w", err)
+	}
+	// Submitted shares are secrets, so keep the state in the user's private
+	// envvault directory rather than next to the vault, where it could be
+	// committed or read by anyone with access to the repo checkout.
 	hash := sha256.Sum256([]byte(absPath))
-	base := filepath.Base(filePath)
-	return filepath.Join(filepath.Dir(absPath), fmt.Sprintf(".envvault-quorum-%s-%x.json", base, hash[:8])), nil
+	return filepath.Join(home, ".envvault", "quorum", fmt.Sprintf("%x.json", hash[:16])), nil
 }
 
 func loadQuorumState(path string) (*quorumState, error) {
@@ -97,6 +104,9 @@ func loadQuorumState(path string) (*quorumState, error) {
 func saveQuorumState(path string, state *quorumState) error {
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 	return atomicWrite(path, data)

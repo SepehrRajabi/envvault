@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var exportShell bool
+
 var exportCmd = &cobra.Command{
 	Use:   "export [vault-file]",
 	Short: "Export environment variables from a vault file",
@@ -52,15 +54,28 @@ var exportCmd = &cobra.Command{
 		decrypted := lockedPlaintext.Bytes()
 
 		// 4. Parse .env contents to validate structure
-		if _, err := envfile.Parse(decrypted); err != nil {
+		vars, err := envfile.Parse(decrypted)
+		if err != nil {
 			return fmt.Errorf("parsing env file: %w", err)
 		}
 
-		// 5, Output to env variables
+		// 5. Output
 		var out strings.Builder
-		lines := strings.SplitSeq(string(decrypted), "\n")
-		for line := range lines {
-			fmt.Fprintf(&out, "%s\n", strings.TrimSpace(line))
+		if exportShell {
+			// Shell-safe output for eval "$(envvault export --shell ...)":
+			// every value is single-quoted, so spaces, $(...), backticks and
+			// newlines in a secret can't be interpreted by the shell.
+			for _, v := range vars {
+				if err := validateEnvKey(v.Key); err != nil {
+					return fmt.Errorf("cannot export as shell: %w", err)
+				}
+				fmt.Fprintf(&out, "export %s=%s\n", v.Key, shellQuote(v.Value))
+			}
+		} else {
+			// Raw dotenv text. NOT safe to pass to eval: values are unquoted.
+			for line := range strings.SplitSeq(string(decrypted), "\n") {
+				fmt.Fprintf(&out, "%s\n", strings.TrimSpace(line))
+			}
 		}
 		fmt.Printf("%s", out.String())
 
@@ -73,6 +88,12 @@ var exportCmd = &cobra.Command{
 	},
 }
 
+// shellQuote single-quotes s for POSIX shells.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 func init() {
+	exportCmd.Flags().BoolVar(&exportShell, "shell", false, "Output shell-safe `export KEY='value'` lines, suitable for eval")
 	rootCmd.AddCommand(exportCmd)
 }

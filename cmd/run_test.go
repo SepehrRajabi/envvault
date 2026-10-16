@@ -10,6 +10,7 @@ import (
 	"filippo.io/age"
 
 	"github.com/SepehrRajabi/envvault/crypto"
+	"github.com/SepehrRajabi/envvault/keyring"
 )
 
 func TestRunCommandInjectsDecryptedEnvVars(t *testing.T) {
@@ -91,4 +92,46 @@ func TestRunCredentialsSkipsPromptForAgePubkey(t *testing.T) {
 		t.Fatalf("age-pubkey vault should not prompt: %v", err)
 	}
 	lb.Unlock()
+}
+
+func TestRunCredentialsUsesKeyringBeforeEnv(t *testing.T) {
+	t.Setenv("ENVVAULT_PASSWORD", "from-env")
+	path := filepath.Join(t.TempDir(), "v.env.vault")
+	enc, err := crypto.Encrypt([]byte("A=1\n"), []byte("from-keyring"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := keyring.StoreKey("from-keyring", path); err != nil {
+		t.Skipf("keyring unavailable: %v", err)
+	}
+	t.Cleanup(func() { keyring.DeleteKey(path) })
+
+	lb, err := runCredentials(enc, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lb.Unlock()
+	if string(lb.Bytes()) != "from-keyring" {
+		t.Fatalf("credential = %q, want keyring value", lb.Bytes())
+	}
+}
+
+func TestRunCredentialsShamirSharesViaEnv(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	p := crypto.NewShamirProvider(5, 3)
+	enc, err := crypto.Encrypt([]byte("A=1\n"), []byte(testPass), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ENVVAULT_PASSWORD", strings.Join(p.GeneratedShares()[:3], ","))
+	lb, err := runCredentials(enc, filepath.Join(t.TempDir(), "s.vault"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lb.Unlock()
+	pt, err := crypto.DecryptSecure(enc, lb.Bytes(), nil)
+	if err != nil {
+		t.Fatalf("shares from run credentials did not decrypt: %v", err)
+	}
+	pt.Unlock()
 }

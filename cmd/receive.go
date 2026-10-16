@@ -174,8 +174,7 @@ func displayVariables(variables map[string]string, shellFormat bool) {
 		for _, key := range keys {
 			value := variables[key]
 			// Escape single quotes in value
-			escapedValue := strings.ReplaceAll(value, "'", "'\\''")
-			fmt.Printf("export %s='%s'\n", key, escapedValue)
+			fmt.Printf("export %s=%s\n", key, shellQuote(value))
 		}
 	} else {
 		// KEY=VALUE format

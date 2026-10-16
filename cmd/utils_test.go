@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"filippo.io/age"
@@ -138,6 +139,7 @@ func TestEnforceTrustUntrustedIsWarningNotError(t *testing.T) {
 }
 
 func TestQuorumStateSaveLoad(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	vaultPath := filepath.Join(dir, "example.env.vault")
 	if err := os.WriteFile(vaultPath, []byte("data"), 0600); err != nil {
@@ -167,5 +169,28 @@ func TestQuorumStateSaveLoad(t *testing.T) {
 
 	if !reflect.DeepEqual(state, loaded) {
 		t.Fatalf("expected loaded state %+v, got %+v", state, loaded)
+	}
+}
+
+func TestQuorumStateLivesInPrivateHomeDirNotBesideVault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	vault := filepath.Join(t.TempDir(), "v.env.vault")
+
+	p, err := quorumStatePath(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(p, filepath.Join(home, ".envvault", "quorum")) {
+		t.Fatalf("state path %s is not under ~/.envvault/quorum", p)
+	}
+	if err := saveQuorumState(p, &quorumState{Threshold: 2, Shares: []string{"s"}}); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(filepath.Dir(p)); err != nil || info.Mode().Perm() != 0700 {
+		t.Fatalf("quorum dir should be 0700, got %v %v", info, err)
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(vault)); len(entries) != 0 {
+		t.Fatalf("state leaked next to the vault: %v", entries)
 	}
 }
