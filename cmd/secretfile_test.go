@@ -64,3 +64,30 @@ func TestReceiveImportWritesOwnerOnly(t *testing.T) {
 		t.Errorf("imported file mode = %v, want 0600", info.Mode().Perm())
 	}
 }
+
+func TestValidateReceivedVars(t *testing.T) {
+	ok := map[string]string{"API_KEY": "abc 123"}
+	if err := validateReceivedVars(ok, false); err != nil {
+		t.Fatalf("valid vars rejected: %v", err)
+	}
+	bad := []map[string]string{
+		{"A;touch /tmp/pwn": "1"},
+		{"A$(id)": "1"},
+		{"GOOD": "x\nEVIL=1"},
+		{"GOOD": "x\x00y"},
+		{"PATH": "/tmp/evil"},
+		{"ld_preload": "/tmp/x.so"},
+		{"AGE_IDENTITY": "AGE-SECRET-KEY-1"},
+	}
+	for _, v := range bad {
+		if err := validateReceivedVars(v, false); err == nil {
+			t.Errorf("expected rejection of %v", v)
+		}
+	}
+	if err := validateReceivedVars(map[string]string{"PATH": "/usr/bin"}, true); err != nil {
+		t.Errorf("--allow-sensitive should permit PATH: %v", err)
+	}
+	if err := validateReceivedVars(map[string]string{"A;x": "1"}, true); err == nil {
+		t.Error("--allow-sensitive must not permit invalid names")
+	}
+}

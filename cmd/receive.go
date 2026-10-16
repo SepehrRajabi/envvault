@@ -15,7 +15,58 @@ import (
 var (
 	receiveImport string
 	receiveOutput bool
+
+	receiveAllowSensitive bool
 )
+
+// sensitiveEnvPrefixes / sensitiveEnvNames are variables that change how
+// programs or shells load code. A share is authenticated to no one (anybody
+// can encrypt to your public key), so receiving them is refused unless the
+// user opts in with --allow-sensitive.
+var (
+	sensitiveEnvPrefixes = []string{"LD_", "DYLD_", "BASH_FUNC_"}
+	sensitiveEnvNames    = map[string]bool{
+		"PATH": true, "IFS": true, "SHELL": true, "HOME": true, "ENV": true,
+		"BASH_ENV": true, "PS1": true, "PROMPT_COMMAND": true, "CDPATH": true,
+		"NODE_OPTIONS": true, "PYTHONPATH": true, "PYTHONSTARTUP": true,
+		"PERL5OPT": true, "PERL5LIB": true, "RUBYOPT": true, "RUBYLIB": true,
+		"GIT_SSH_COMMAND": true, "GIT_EXTERNAL_DIFF": true, "EDITOR": true,
+		"VISUAL": true, "PAGER": true, "ENVVAULT_PASSWORD": true, "AGE_IDENTITY": true,
+	}
+)
+
+func isSensitiveEnvName(key string) bool {
+	if sensitiveEnvNames[strings.ToUpper(key)] {
+		return true
+	}
+	upper := strings.ToUpper(key)
+	for _, p := range sensitiveEnvPrefixes {
+		if strings.HasPrefix(upper, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateReceivedVars rejects shared variables that would be unsafe to write
+// into a .env file or to eval in a shell: names that aren't plain
+// identifiers (command injection via `export NAME=...`), values containing
+// line breaks or NULs (extra injected variables), and code-loading variables
+// unless allowSensitive is set.
+func validateReceivedVars(vars map[string]string, allowSensitive bool) error {
+	for key, value := range vars {
+		if err := validateEnvKey(key); err != nil {
+			return fmt.Errorf("refusing shared variable: %w", err)
+		}
+		if strings.ContainsAny(value, "\n\r\x00") {
+			return fmt.Errorf("refusing shared variable %s: value contains a line break or NUL", key)
+		}
+		if !allowSensitive && isSensitiveEnvName(key) {
+			return fmt.Errorf("refusing shared variable %s: it can change how programs load code (use --allow-sensitive if you trust the sender)", key)
+		}
+	}
+	return nil
+}
 
 var receiveCmd = &cobra.Command{
 	Use:   "receive <evlt://...>",
@@ -35,6 +86,10 @@ You can:
 		// Decrypt the shared variables
 		variables, err := crypto.DecodeShare(sharedString)
 		if err != nil {
+			return err
+		}
+
+		if err := validateReceivedVars(variables, receiveAllowSensitive); err != nil {
 			return err
 		}
 
@@ -162,6 +217,8 @@ func formatEnvFile(variables map[string]string) string {
 func init() {
 	receiveCmd.Flags().StringVar(&receiveImport, "import", "", "Import variables into this file")
 	receiveCmd.Flags().BoolVar(&receiveOutput, "output", false, "Output as shell export statements (for piping to source)")
+
+	receiveCmd.Flags().BoolVar(&receiveAllowSensitive, "allow-sensitive", false, "Accept code-loading variables such as PATH or LD_PRELOAD (only if you trust the sender)")
 
 	rootCmd.AddCommand(receiveCmd)
 }

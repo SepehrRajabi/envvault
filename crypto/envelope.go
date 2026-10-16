@@ -73,6 +73,12 @@ func parseEnvelope(data []byte) (*envelopeHeader, []byte, error) {
 
 // Encrypt uses the specified provider (or default) to encrypt data.
 func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
+	return encrypt(plaintext, password, true, provider...)
+}
+
+// encrypt is Encrypt with control over whether the current git commit's
+// metadata (hash, author name and email) is embedded in the cleartext header.
+func encrypt(plaintext, password []byte, withCommit bool, provider ...Provider) ([]byte, error) {
 	var p Provider
 	if len(provider) > 0 && provider[0] != nil {
 		p = provider[0]
@@ -107,8 +113,10 @@ func Encrypt(plaintext, password []byte, provider ...Provider) ([]byte, error) {
 		hdr.ProviderParams = md.Metadata()
 	}
 
-	if commitMeta, err := GetGitCommitMetadata(); err == nil && commitMeta != nil {
-		hdr.Commit = commitMeta
+	if withCommit {
+		if commitMeta, err := GetGitCommitMetadata(); err == nil && commitMeta != nil {
+			hdr.Commit = commitMeta
+		}
 	}
 
 	if hdr.Checksum, err = headerMAC(macKey, &hdr, plaintext); err != nil {

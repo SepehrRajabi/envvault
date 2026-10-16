@@ -30,6 +30,7 @@ func (a *AgePubKeyProvider) Encrypt(plaintext, publicKeyBytes []byte) ([]byte, e
 	// Split by comma to support multiple recipients
 	keyStrings := strings.Split(publicKeyStr, ",")
 	var recipients []age.Recipient
+	var cleaned []string
 
 	for _, keyStr := range keyStrings {
 		keyStr = strings.TrimSpace(keyStr)
@@ -42,13 +43,14 @@ func (a *AgePubKeyProvider) Encrypt(plaintext, publicKeyBytes []byte) ([]byte, e
 			return nil, fmt.Errorf("invalid age public key %q: %w", keyStr, err)
 		}
 		recipients = append(recipients, recipient)
+		cleaned = append(cleaned, keyStr)
 	}
 
 	if len(recipients) == 0 {
 		return nil, fmt.Errorf("no valid public keys provided")
 	}
 
-	a.Recipients = keyStrings
+	a.Recipients = cleaned
 	var buf bytes.Buffer
 	w, err := age.Encrypt(&buf, recipients...)
 	if err != nil {
